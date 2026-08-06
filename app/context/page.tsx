@@ -1,14 +1,88 @@
-import { SectionShell } from '@components/ui/SectionShell';
+'use client';
+
+import { useEffect, useState } from 'react';
+import AdaptiveInvestigationEngine from '@/runtime/engines/AdaptiveInvestigationEngine';
+import { readInvestigationState, writeInvestigationState } from '@/lib/investigationStateStorage';
+import {
+  reconstructOperationalObjectFromText,
+  tryParseOperationalObject,
+} from '@/runtime/schemas/OperationalObjectRecovery';
+
+const OPERATIONAL_OBJECT_STORAGE_KEY = 'atlaz.runtime.operationalObject';
+const adaptiveInvestigationEngine = new AdaptiveInvestigationEngine();
+
+type OperationalObjectLike = {
+  requiredInformation?: string[];
+  problemStatement?: string;
+};
 
 export default function ContextBuildingPage() {
+  const [firstQuestion, setFirstQuestion] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    const existingState = readInvestigationState();
+
+    if (existingState?.currentQuestion?.question) {
+      setFirstQuestion(existingState.currentQuestion.question);
+      return;
+    }
+
+    const raw = sessionStorage.getItem(OPERATIONAL_OBJECT_STORAGE_KEY);
+
+    if (!raw) {
+      setErrorMessage('Nenhuma interpretação foi encontrada. Inicie em "Resolver um Problema".');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as OperationalObjectLike;
+      const validation = tryParseOperationalObject(parsed);
+
+      if (validation.success) {
+        const initializedState = adaptiveInvestigationEngine.initialize(validation.data);
+        writeInvestigationState(initializedState);
+        setFirstQuestion(initializedState.currentQuestion?.question ?? validation.data.requiredInformation[0]);
+        return;
+      }
+
+      if (typeof parsed.problemStatement === 'string' && parsed.problemStatement.trim().length > 0) {
+        const recovered = reconstructOperationalObjectFromText(raw, parsed.problemStatement);
+        sessionStorage.setItem(OPERATIONAL_OBJECT_STORAGE_KEY, JSON.stringify(recovered));
+        const recoveredState = adaptiveInvestigationEngine.initialize(recovered);
+        writeInvestigationState(recoveredState);
+        setFirstQuestion(recoveredState.currentQuestion?.question ?? recovered.requiredInformation[0]);
+        return;
+      }
+
+      setErrorMessage('Não foi possível identificar a primeira pergunta contextual no resultado da interpretação.');
+    } catch {
+      setErrorMessage('Não foi possível carregar a interpretação inicial.');
+    }
+  }, []);
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <SectionShell>
-        <h1 className="text-3xl font-semibold">Context Building</h1>
-        <p className="mt-3 text-slate-300">
-          A workspace for aggregating context, references, and domain insights.
-        </p>
-      </SectionShell>
+    <main className="bg-white text-slate-950">
+      <section className="mx-auto min-h-screen max-w-[920px] px-6 py-16 lg:px-8">
+        <div className="space-y-8 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Contexto operacional</h1>
+
+          <p className="max-w-[760px] text-lg leading-8 text-slate-700">
+            Compreendi uma primeira visão do problema.
+            <br />
+            Antes de levantar hipóteses, preciso compreender melhor o contexto operacional.
+          </p>
+
+          {errorMessage ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Primeira pergunta contextual</p>
+              <p className="mt-3 text-lg leading-8 text-slate-900">{firstQuestion}</p>
+            </div>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

@@ -117,7 +117,7 @@ const expectedResults = [
     description: 'Queda projetada em perdas de material e retrabalho.',
   },
   {
-    title: 'Delivery',
+    title: 'Entrega',
     value: '+11%',
     description: 'Maior aderência a prazo em pedidos críticos.',
   },
@@ -136,29 +136,27 @@ function ActionSection({
   title,
   purpose,
   actions,
-  delay,
 }: {
   title: string;
   purpose: string;
   actions: ActionItem[];
-  delay?: string;
 }) {
   return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-10 shadow-sm shadow-slate-950/5 animate-fade-in" style={delay ? { animationDelay: delay } : undefined}>
-      <div className="space-y-5">
-        <div className="flex items-center justify-between gap-4">
+    <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold text-slate-950">{title}</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{purpose}</p>
+            <h3 className="text-2xl font-semibold text-slate-950">{title}</h3>
+            <p className="mt-2 text-sm leading-7 text-slate-600">{purpose}</p>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+          <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
             Priorizado pela ATLAZ
           </span>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {actions.map((action) => (
-            <details key={action.title} className="group rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 transition duration-200 open:bg-white hover:border-slate-300">
+            <details key={action.title} className="group rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 transition duration-200 open:bg-white">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -170,7 +168,7 @@ function ActionSection({
                   </span>
                 </div>
               </summary>
-              <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 text-sm transition-all duration-300 group-open:animate-fade-in sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Impacto esperado</p>
                   <p className="mt-2 font-semibold text-slate-900">{action.impact}</p>
@@ -213,67 +211,53 @@ export default function EvoluirPage() {
   return (
     <main className="bg-white text-slate-950">
       <section className="mx-auto min-h-screen max-w-[1280px] px-6 py-16 lg:px-8">
-        <div className="space-y-14">
-          <div className="space-y-6">
-            <nav aria-label="Progresso da investigação" className="flex flex-wrap items-center gap-3">
-              {progressItems.map((item) => (
-                <div
-                  key={item.label}
-                  className={`flex items-center gap-3 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${
-                    item.complete
-                      ? 'border-slate-200 bg-slate-100 text-slate-700'
-                      : item.active
-                      ? 'border-[#5B5CEB] bg-[#5B5CEB] text-white'
-                      : 'border-slate-200 bg-white text-slate-400'
-                  }`}
-                  aria-current={item.active ? 'true' : undefined}
-                >
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[0.65rem] font-semibold text-current">
-                    {item.number}
-                  </span>
-                  {item.label}
-                </div>
-              ))}
-            </nav>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-10 shadow-sm shadow-slate-950/5">
-              <div className="space-y-6 text-center">
-                <p className="text-xs uppercase tracking-[0.32em] text-slate-500">EVOLUIR</p>
-                <div className="mx-auto max-w-[760px] space-y-5">
-                  <h1 className="text-[3rem] leading-[0.96] tracking-tight text-slate-950 sm:text-[3.75rem]">
-                    Plano de ação recomendado
-                  </h1>
-                  <p className="text-[18px] leading-8 text-slate-600">
-                    A investigação foi concluída.
-                  </p>
-                  <p className="text-[18px] leading-8 text-slate-600">
-                    A ATLAZ organizou as ações recomendadas por prioridade, impacto esperado e evidências coletadas.
-                  </p>
-                  <p className="text-sm italic leading-7 text-slate-500">
-                    Investigação concluída. Decisão fundamentada. Plano estruturado. Melhoria contínua.
-                  </p>
-                </div>
+        <div className="space-y-10">
+          <nav aria-label="Progresso da investigação" className="flex flex-wrap items-center gap-3">
+            {progressItems.map((item) => (
+              <div
+                key={item.label}
+                className={`flex items-center gap-3 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] ${
+                  item.complete
+                    ? 'border-slate-200 bg-slate-100 text-slate-700'
+                    : item.active
+                    ? 'border-[#5B5CEB] bg-[#5B5CEB] text-white'
+                    : 'border-slate-200 bg-white text-slate-400'
+                }`}
+                aria-current={item.active ? 'true' : undefined}
+              >
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[0.65rem] font-semibold text-current">
+                  {item.number}
+                </span>
+                {item.label}
               </div>
-            </div>
+            ))}
+          </nav>
+
+          <div className="rounded-[2rem] border-2 border-slate-300 bg-white p-10 shadow-md shadow-slate-950/10">
+            <p className="text-xs uppercase tracking-[0.32em] text-slate-500">EVOLUIR</p>
+            <h1 className="mt-4 max-w-[780px] text-[2.9rem] leading-[0.96] tracking-tight text-slate-950 sm:text-[3.5rem]">
+              Plano de ação recomendado
+            </h1>
+            <p className="mt-5 max-w-[760px] text-[18px] leading-8 text-slate-600">
+              A ATLAZ concluiu a investigação, priorizou ações por impacto e estruturou a execução para reduzir risco imediato e evitar recorrência.
+            </p>
           </div>
 
-          <div className="grid gap-10 lg:grid-cols-[62%_36%]">
+          <div className="grid gap-10 lg:grid-cols-[64%_36%]">
             <div className="space-y-8">
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-10 shadow-sm shadow-slate-950/5 animate-fade-in">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Objetivo executivo</p>
-                      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{executiveObjective.title}</h2>
-                    </div>
-                    <span className="rounded-full bg-[#5B5CEB] px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-white">
-                      Confiança {executiveObjective.confidence}
-                    </span>
+              <div className="rounded-[2rem] border-2 border-slate-300 bg-white p-10 shadow-md shadow-slate-950/10">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Objetivo executivo</p>
+                    <h2 className="mt-2 text-3xl font-semibold leading-tight text-slate-950">{executiveObjective.title}</h2>
                   </div>
-                  <div className="rounded-[1.75rem] bg-slate-50 p-6">
-                    <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Recomendação central</p>
-                    <p className="mt-4 text-lg leading-8 text-slate-900">{executiveObjective.recommendation}</p>
-                  </div>
+                  <span className="rounded-full bg-[#5B5CEB] px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-white">
+                    Confiança {executiveObjective.confidence}
+                  </span>
+                </div>
+                <div className="mt-6 rounded-[1.5rem] bg-[#5B5CEB] p-6 text-white">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-200">Recomendação central</p>
+                  <p className="mt-3 text-lg font-semibold leading-8">{executiveObjective.recommendation}</p>
                 </div>
               </div>
 
@@ -281,192 +265,160 @@ export default function EvoluirPage() {
                 title="Primeiras ações recomendadas"
                 purpose="Ações imediatas para estabilizar a situação atual e reduzir impacto operacional no curto prazo."
                 actions={phaseOneActions}
-                delay="0.05s"
               />
 
               <ActionSection
                 title="Eliminar a causa identificada"
                 purpose="Intervenções para remover de forma definitiva a causa principal encontrada na investigação."
                 actions={phaseTwoActions}
-                delay="0.1s"
               />
 
               <ActionSection
                 title="Evitar que o problema volte"
                 purpose="Melhorias sistêmicas de longo prazo para sustentar o resultado e fortalecer a prevenção."
                 actions={phaseThreeActions}
-                delay="0.15s"
               />
 
-              <div className="grid gap-4 lg:grid-cols-[58%_40%]">
-                <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                  <div className="space-y-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Resultados esperados</p>
-                        <h2 className="mt-2 text-2xl font-semibold text-slate-950">Indicadores executivos</h2>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                        Projeção inicial
-                      </span>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {expectedResults.map((result) => (
-                        <div key={result.title} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-slate-950">{result.title}</p>
-                            <span className="text-sm font-semibold text-[#5B5CEB]">{result.value}</span>
-                          </div>
-                          <p className="mt-2 text-sm leading-7 text-slate-600">{result.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.22s' }}>
-                  <div className="space-y-4">
-                    <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Risco se nada for feito</p>
-                    <h3 className="text-xl font-semibold text-slate-950">Impactos prováveis sem execução do plano</h3>
-                    <ul className="space-y-3 text-sm leading-7 text-slate-600">
-                      {[
-                        'Perda progressiva de produtividade em linhas críticas',
-                        'Aumento de scrap e retrabalho com maior custo operacional',
-                        'Maior risco de impacto ao cliente em entregas de prioridade alta',
-                        'Reincidência do problema por ausência de reforço sistêmico',
-                      ].map((item) => (
-                        <li key={item} className="flex gap-3">
-                          <span className="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-950 text-xs text-white">!</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-10 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.25s' }}>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between gap-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Investigação continua aberta</p>
-                      <h2 className="mt-2 text-2xl font-semibold text-slate-950">Novas informações encontradas?</h2>
+                      <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Evidências</p>
+                      <h3 className="mt-2 text-xl font-semibold text-slate-950">Indicadores esperados</h3>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                      Atualização automática
+                    <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                      Projeção inicial
                     </span>
                   </div>
-                  <p className="text-sm leading-7 text-slate-200/90">
-                    Novas evidências podem repriorizar automaticamente recomendações e atualizar o plano de ação.
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {[
-                      { label: 'Adicionar nota', description: 'Registrar novas observações de campo' },
-                      { label: 'Enviar documento', description: 'PDF, DOCX, XLSX ou TXT' },
-                      { label: 'Enviar foto', description: 'Evidência visual da operação' },
-                      { label: 'Enviar planilha', description: 'Dados adicionais para análise' },
-                      { label: 'Enviar vídeo', description: 'Contexto de execução em linha' },
-                    ].map((item) => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className="rounded-[1.25rem] border border-slate-200 bg-white p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
-                      >
-                        <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-                        <p className="mt-2 text-sm text-slate-500">{item.description}</p>
-                      </button>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {expectedResults.map((result) => (
+                      <div key={result.title} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-950">{result.title}</p>
+                          <span className="text-sm font-semibold text-[#5B5CEB]">{result.value}</span>
+                        </div>
+                        <p className="mt-2 text-sm leading-7 text-slate-600">{result.description}</p>
+                      </div>
                     ))}
                   </div>
-                  <p className="rounded-[1.25rem] border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-600">
-                    New evidence may automatically reprioritize recommendations and update the action plan.
-                  </p>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Risco se nada for feito</p>
+                  <h3 className="mt-2 text-xl font-semibold text-slate-950">Impactos prováveis sem execução</h3>
+                  <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
+                    {[
+                      'Perda progressiva de produtividade em linhas críticas',
+                      'Aumento de scrap e retrabalho com maior custo operacional',
+                      'Maior risco de impacto ao cliente em entregas de prioridade alta',
+                      'Reincidência do problema por ausência de reforço sistêmico',
+                    ].map((item) => (
+                      <li key={item} className="flex gap-3">
+                        <span className="mt-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[10px] text-white">
+                          !
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                <h3 className="text-lg font-semibold text-slate-950">Conhecimento organizacional</h3>
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Ação e continuidade</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Plano pronto para execução</h3>
                 <p className="mt-3 text-sm leading-7 text-slate-600">
-                  Esta investigação se torna conhecimento organizacional e pode acelerar futuras investigações com características similares.
+                  Novas evidências podem repriorizar automaticamente recomendações e atualizar o plano de ação sem perder rastreabilidade.
                 </p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: 'Adicionar nota', description: 'Registrar novas observações de campo' },
+                    { label: 'Enviar documento', description: 'PDF, DOCX, XLSX ou TXT' },
+                    { label: 'Enviar foto', description: 'Evidência visual da operação' },
+                    { label: 'Enviar planilha', description: 'Dados adicionais para análise' },
+                    { label: 'Enviar vídeo', description: 'Contexto de execução em linha' },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+                    >
+                      <p className="text-sm font-semibold text-slate-950">{item.label}</p>
+                      <p className="mt-2 text-sm text-slate-500">{item.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Fechamento da etapa</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Plano de ação gerado</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  A investigação agora é conhecimento organizacional e está pronta para execução coordenada com as áreas responsáveis.
+                </p>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <Button type="button" onClick={() => router.push('/')} className="w-full sm:w-auto">
+                    Salvar plano de ação
+                  </Button>
+                  <Button variant="secondary" type="button" className="w-full sm:w-auto">
+                    Exportar relatório
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={() => router.push('/new')} className="w-full sm:w-auto">
+                    Nova investigação
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.05s' }}>
-                <div className="space-y-4">
-                  <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Perfil logado</p>
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <div className="flex items-center gap-4">
-                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">ML</span>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-950">Marcos Lopes</p>
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Continuous Improvement Manager</p>
-                      </div>
+            <aside className="space-y-6">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Perfil logado</p>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-4">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">
+                      ML
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">Marcos Lopes</p>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Gerente de Melhoria Contínua</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                <h3 className="text-lg font-semibold text-slate-950">Resumo de status</h3>
-                <div className="mt-5 space-y-4">
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-sm font-semibold text-slate-950">Investigação concluída</p>
-                    <div className="mt-3 h-2 rounded-full bg-slate-200">
-                      <div className="h-2 w-full rounded-full bg-[#5B5CEB]" />
-                    </div>
-                    <p className="mt-3 text-sm text-slate-600">100% consolidado</p>
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Resumo de status</p>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-950">Investigação concluída</p>
+                  <div className="mt-3 h-2 rounded-full bg-slate-200">
+                    <div className="h-2 w-full rounded-full bg-[#5B5CEB]" />
                   </div>
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-sm font-semibold text-slate-950">Nível de confiança</p>
-                    <p className="mt-3 text-3xl font-semibold text-slate-950">{executiveObjective.confidence}</p>
-                  </div>
+                  <p className="mt-3 text-sm text-slate-600">100% consolidado</p>
+                </div>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-950">Nível de confiança</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">{executiveObjective.confidence}</p>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.15s' }}>
-                <h3 className="text-lg font-semibold text-slate-950">Métodos aplicados</h3>
-                <div className="mt-5 space-y-3 text-sm leading-7 text-slate-600">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Métodos aplicados</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
                   {methodsApplied.map((item) => (
-                    <div key={item} className="rounded-3xl border border-slate-200 bg-white p-4">
+                    <div key={item} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                       {item}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                <h3 className="text-lg font-semibold text-slate-950">Última atualização</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6 text-sm leading-7 text-slate-600">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Última atualização</p>
+                <p className="mt-2">
                   Plano consolidado há poucos minutos com base nas evidências validadas, conclusões da investigação e nível atual de confiança.
                 </p>
               </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5 animate-fade-in" style={{ animationDelay: '0.25s' }}>
-                <h3 className="text-lg font-semibold text-slate-950">Pronto para execução</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  As recomendações já estão organizadas automaticamente em uma sequência prática para implementação.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm shadow-slate-950/5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-950">Próximo passo</p>
-              <p className="mt-2 text-sm leading-7 text-slate-600">Confirme o plano estruturado e compartilhe com as áreas responsáveis.</p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button type="button" onClick={() => router.push('/')} className="w-full sm:w-auto">
-                Salvar plano de ação
-              </Button>
-              <Button variant="secondary" type="button" className="w-full sm:w-auto">
-                Exportar relatório
-              </Button>
-              <Button variant="secondary" type="button" onClick={() => router.push('/new')} className="w-full sm:w-auto">
-                Nova investigação
-              </Button>
-            </div>
+            </aside>
           </div>
         </div>
       </section>

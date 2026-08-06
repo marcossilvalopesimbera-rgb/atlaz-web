@@ -7,9 +7,9 @@ import { Button } from '@components/ui/Button';
 
 const principles = [
   'Toda investigação começa entendendo o contexto.',
-  'Boas decisões nascem de boas perguntas.',
-  'Cada problema merece um método.',
-  'A clareza vem antes da solução.',
+  'A clareza vem antes da decisão.',
+  'Hipóteses fortes nascem de evidências reais.',
+  'Método estruturado reduz incerteza.',
 ];
 
 export function HomeHero() {
@@ -33,7 +33,7 @@ export function HomeHero() {
             </div>
 
             <p className="max-w-[560px] text-[18px] leading-8 text-slate-600">
-              Transforme problemas complexos em decisões estruturadas e confiáveis através de uma investigação guiada por IA.
+              A primeira IA especializada em conduzir investigações estruturadas para engenharia, operações e negócios.
             </p>
 
             <p className="max-w-[560px] text-sm italic leading-7 text-slate-500">{principle}</p>
@@ -45,7 +45,7 @@ export function HomeHero() {
               className="w-full sm:w-auto"
               onClick={() => router.push('/new')}
             >
-              Explorar um problema
+              Iniciar investigação
             </Button>
             <Button
               variant="secondary"
@@ -56,20 +56,24 @@ export function HomeHero() {
             </Button>
           </div>
 
-          <div className="flex flex-col gap-4 border-t border-slate-200 pt-8 text-sm text-slate-500 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-semibold text-slate-950">+40%</span>
-              <span>Decisões mais rápidas</span>
+          <div id="product" className="grid gap-4 border-t border-slate-200 pt-8 sm:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">Investigação Estruturada</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Cada problema segue uma sequência lógica baseada em engenharia, método científico e evidências.
+              </p>
             </div>
-            <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-semibold text-slate-950">100%</span>
-              <span>Rastreabilidade</span>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">Decisões Rastreáveis</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Toda conclusão permanece conectada às evidências que a sustentam.
+              </p>
             </div>
-            <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-semibold text-slate-950">24/7</span>
-              <span>IA Especialista</span>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">Aprendizado Contínuo</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Cada investigação fortalece o conhecimento organizacional e reduz futuras incertezas.
+              </p>
             </div>
           </div>
         </div>

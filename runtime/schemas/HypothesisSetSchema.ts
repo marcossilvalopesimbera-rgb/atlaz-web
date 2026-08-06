@@ -1,0 +1,1 @@
+export const HypothesisSetSchema = {} as const;

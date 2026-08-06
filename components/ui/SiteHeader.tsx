@@ -37,7 +37,7 @@ export function SiteHeader() {
             href="/new"
             className="rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition duration-200 transform hover:-translate-y-0.5 hover:bg-slate-900"
           >
-            Resolver um Problema
+            Iniciar investigação
           </Link>
         </div>
       </div>
