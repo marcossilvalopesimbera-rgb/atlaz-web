@@ -1,21 +1,64 @@
 import OpenAI from "openai";
-import { LLMProvider, LLMProviderMetadata } from "./LLMProvider";
+import { resolveModelCapabilities } from "./aiCapabilities";
+import { AIProviderError, toAIProviderError } from "./aiErrors";
+import { logAIRequestFailure, logAIRequestSuccess } from "./aiObservability";
+import { getConfiguredOpenAITemperature, validateOpenAIConfiguration } from "./providerValidation";
+import { LLMProvider, LLMProviderMetadata, LLMRequestContext } from "./LLMProvider";
+
+type OpenAIResponsesClient = {
+  responses: {
+    create: (
+      params: {
+        model: string;
+        input: Array<{ role: "system" | "user"; content: string }>;
+        temperature?: number;
+      },
+      options: { signal: AbortSignal }
+    ) => Promise<{
+      output_text?: string | null;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+      };
+      output?: Array<{
+        type?: string;
+        status?: string;
+        finish_reason?: string;
+      }>;
+    }>;
+  };
+};
+
+type OpenAIProviderOptions = {
+  client?: OpenAIResponsesClient;
+  model?: string;
+  timeoutMs?: number;
+};
+
+const getNonEmptyString = (value: unknown): string | undefined => {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+};
 
 export default class OpenAIProvider implements LLMProvider {
-  private readonly client: OpenAI;
+  private readonly client: OpenAIResponsesClient;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly temperature?: number;
 
-  constructor() {
+  constructor(options: OpenAIProviderOptions = {}) {
     const apiKey = process.env.OPENAI_API_KEY;
 
-    if (!apiKey || apiKey.trim().length === 0) {
+    if (!options.client && (!apiKey || apiKey.trim().length === 0)) {
       throw new Error("Missing OPENAI_API_KEY environment variable");
     }
 
-    this.client = new OpenAI({ apiKey });
-    this.model = process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
-    this.timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || "20000");
+    this.client = options.client ?? new OpenAI({ apiKey });
+    this.model = options.model ?? (process.env.OPENAI_MODEL?.trim() || "gpt-5.5");
+    this.timeoutMs = options.timeoutMs ?? Number(process.env.OPENAI_TIMEOUT_MS || "20000");
+    this.temperature = getConfiguredOpenAITemperature() ?? 0.2;
+
+    validateOpenAIConfiguration(this.model);
   }
 
   public getMetadata(): LLMProviderMetadata {
@@ -25,47 +68,135 @@ export default class OpenAIProvider implements LLMProvider {
     };
   }
 
-  public async generate(systemInstruction: string, userInput: string): Promise<string> {
+  public async generateWithMetadata(
+    systemInstruction: string,
+    userInput: string,
+    context: LLMRequestContext = {}
+  ): Promise<{
+    text: string;
+    tokenUsage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    };
+    finishReason?: string;
+  }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const startedAt = Date.now();
+    const capabilities = resolveModelCapabilities(this.model);
+
+    const requestPayload: {
+      model: string;
+      input: Array<{ role: "system" | "user"; content: string }>;
+      temperature?: number;
+    } = {
+      model: this.model,
+      input: [
+        {
+          role: "system",
+          content: systemInstruction,
+        },
+        {
+          role: "user",
+          content: userInput,
+        },
+      ],
+    };
+
+    if (capabilities.supportsTemperature && this.temperature !== undefined) {
+      requestPayload.temperature = this.temperature;
+    }
 
     try {
-      const response = await this.client.responses.create({
-        model: this.model,
-        temperature: 0.2,
-        input: [
-          {
-            role: "system",
-            content: systemInstruction,
-          },
-          {
-            role: "user",
-            content: userInput,
-          },
-        ],
-      }, {
+      const response = await this.client.responses.create(requestPayload, {
         signal: controller.signal,
       });
 
       const text = response.output_text?.trim();
 
       if (!text) {
-        throw new Error("OpenAI returned an empty response");
+        throw new AIProviderError({
+          category: "AI_INVALID_RESPONSE",
+          provider: "openai",
+          model: this.model,
+          requestId: context.requestId,
+          endpoint: context.endpoint,
+          providerMessage: "OpenAI returned an empty response",
+          providerErrorType: "empty_response",
+        });
       }
 
-      return text;
+      logAIRequestSuccess({
+        timestamp: new Date().toISOString(),
+        requestId: context.requestId,
+        investigationId: context.investigationId,
+        provider: "openai",
+        model: this.model,
+        endpoint: context.endpoint,
+        durationMs: Date.now() - startedAt,
+        retryCount: context.retryCount ?? 0,
+      });
+
+      return {
+        text,
+        tokenUsage: {
+          inputTokens: response.usage?.input_tokens,
+          outputTokens: response.usage?.output_tokens,
+          totalTokens: response.usage?.total_tokens,
+        },
+        finishReason: response.output?.[0]?.finish_reason,
+      };
     } catch (error) {
-      if (error instanceof Error && error.message === "OpenAI returned an empty response") {
-        throw error;
-      }
+      const normalizedError = toAIProviderError(error, {
+        provider: "openai",
+        model: this.model,
+        requestId: context.requestId,
+        endpoint: context.endpoint,
+      });
 
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("LLM request timed out");
-      }
+      const upstreamRequestId = getNonEmptyString(
+        (error as { request_id?: unknown } | null | undefined)?.request_id
+      );
 
-      throw new Error("OpenAI request failed");
+      const propagatedError =
+        upstreamRequestId && !normalizedError.providerMessage.includes("request_id:")
+          ? new AIProviderError({
+              category: normalizedError.category,
+              provider: normalizedError.provider,
+              model: normalizedError.model,
+              requestId: normalizedError.requestId,
+              endpoint: normalizedError.endpoint,
+              status: normalizedError.status,
+              providerErrorType: normalizedError.providerErrorType,
+              providerErrorCode: normalizedError.providerErrorCode,
+              providerMessage: `${normalizedError.providerMessage} (request_id: ${upstreamRequestId})`,
+              cause: normalizedError.cause,
+            })
+          : normalizedError;
+
+      logAIRequestFailure(
+        {
+          timestamp: new Date().toISOString(),
+          requestId: context.requestId,
+          investigationId: context.investigationId,
+          provider: "openai",
+          model: this.model,
+          endpoint: context.endpoint,
+          durationMs: Date.now() - startedAt,
+          retryCount: context.retryCount ?? 0,
+        },
+        propagatedError
+      );
+
+      throw propagatedError;
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  public async generate(systemInstruction: string, userInput: string, context: LLMRequestContext = {}): Promise<string> {
+    const result = await this.generateWithMetadata(systemInstruction, userInput, context);
+    return result.text;
   }
 }
