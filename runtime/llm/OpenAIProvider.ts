@@ -5,30 +5,7 @@ import { logAIRequestFailure, logAIRequestSuccess } from "./aiObservability";
 import { getConfiguredOpenAITemperature, validateOpenAIConfiguration } from "./providerValidation";
 import { LLMProvider, LLMProviderMetadata, LLMRequestContext } from "./LLMProvider";
 
-type OpenAIResponsesClient = {
-  responses: {
-    create: (
-      params: {
-        model: string;
-        input: Array<{ role: "system" | "user"; content: string }>;
-        temperature?: number;
-      },
-      options: { signal: AbortSignal }
-    ) => Promise<{
-      output_text?: string | null;
-      usage?: {
-        input_tokens?: number;
-        output_tokens?: number;
-        total_tokens?: number;
-      };
-      output?: Array<{
-        type?: string;
-        status?: string;
-        finish_reason?: string;
-      }>;
-    }>;
-  };
-};
+type OpenAIResponsesClient = Pick<OpenAI, "responses">;
 
 type OpenAIProviderOptions = {
   client?: OpenAIResponsesClient;
@@ -145,7 +122,7 @@ export default class OpenAIProvider implements LLMProvider {
           outputTokens: response.usage?.output_tokens,
           totalTokens: response.usage?.total_tokens,
         },
-        finishReason: response.output?.[0]?.finish_reason,
+        finishReason: (response.output?.[0] as { finish_reason?: string } | undefined)?.finish_reason,
       };
     } catch (error) {
       const normalizedError = toAIProviderError(error, {
