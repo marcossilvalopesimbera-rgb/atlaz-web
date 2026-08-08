@@ -4,36 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
 import { readInvestigationState } from '@/lib/investigationStateStorage';
+import type { EvidenceItem, HypothesisState } from '@/runtime/artifacts/AdaptiveInvestigationState';
 
 const progressSteps = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
-const defaultSignals = ['Produção', 'Qualidade', 'Custo', 'Entrega', 'Manutenção', 'Liderança', 'Estoque'];
-
-const defaultHypotheses = [
-  {
-    title: 'Variabilidade do processo',
-    confidence: 'Alta',
-    explanation: 'Múltiplos sinais indicam inconsistência entre planejamento e execução.',
-    color: 'bg-violet-100 text-violet-700 border-violet-200',
-  },
-  {
-    title: 'Sobrecarga de recursos',
-    confidence: 'Média',
-    explanation: 'As equipes parecem sobrecarregadas por iniciativas paralelas, reduzindo a velocidade de resposta.',
-    color: 'bg-slate-100 text-slate-700 border-slate-200',
-  },
-  {
-    title: 'Desvio de controle',
-    confidence: 'Alta',
-    explanation: 'Os controles operacionais enfraqueceram, permitindo que pequenos desvios se acumulem.',
-    color: 'bg-violet-100 text-violet-700 border-violet-200',
-  },
-  {
-    title: 'Lacunas de informação',
-    confidence: 'Média',
-    explanation: 'Transições críticas carecem de responsabilidade clara e visibilidade entre áreas.',
-    color: 'bg-slate-100 text-slate-700 border-slate-200',
-  },
-];
 
 const confidenceLabel = (value: number): 'Alta' | 'Média' | 'Baixa' => {
   if (value >= 0.75) {
@@ -45,10 +18,12 @@ const confidenceLabel = (value: number): 'Alta' | 'Média' | 'Baixa' => {
   return 'Baixa';
 };
 
+const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
+
 export default function CompreenderPage() {
   const router = useRouter();
-  const [signals, setSignals] = useState<string[]>(defaultSignals);
-  const [hypotheses, setHypotheses] = useState(defaultHypotheses);
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
+  const [hypotheses, setHypotheses] = useState<HypothesisState[]>([]);
   const [overallConfidence, setOverallConfidence] = useState<'Alta' | 'Média' | 'Baixa'>('Alta');
   const [mainConclusion, setMainConclusion] = useState(
     'A clareza está na sequência entre planejamento e controles.'
@@ -61,28 +36,19 @@ export default function CompreenderPage() {
       return;
     }
 
-    const mappedSignals = Array.from(new Set([state.operationalObject.domain, ...state.operationalObject.suspectedDomains]))
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (mappedSignals.length > 0) {
-      setSignals(mappedSignals);
+    if (state.evidenceRegistry.items.length > 0) {
+      setEvidence(state.evidenceRegistry.items.slice(-8).reverse());
     }
 
-    const mappedHypotheses = state.hypotheses
+    const rankedHypotheses = state.hypothesisRegistry.items
       .slice()
       .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 4)
-      .map((item, index) => ({
-        title: item.statement,
-        confidence: confidenceLabel(item.confidence),
-        explanation: item.rationale,
-        color: index % 2 === 0 ? 'bg-violet-100 text-violet-700 border-violet-200' : 'bg-slate-100 text-slate-700 border-slate-200',
-      }));
+      .slice(0, 6);
 
-    if (mappedHypotheses.length > 0) {
-      setHypotheses(mappedHypotheses);
-      setMainConclusion(mappedHypotheses[0].title);
+    if (rankedHypotheses.length > 0) {
+      setHypotheses(rankedHypotheses);
+      const bestConfirmed = rankedHypotheses.find((item) => item.status === 'Confirmed');
+      setMainConclusion((bestConfirmed ?? rankedHypotheses[0]).description);
     }
 
     setOverallConfidence(confidenceLabel(state.currentConfidence));
@@ -157,10 +123,10 @@ export default function CompreenderPage() {
                   </span>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-slate-600">
-                  O impacto ocorre principalmente em pedidos críticos: a complexidade na transferência entre planejamento e execução gerou atrasos, falhas de qualidade e fricção entre times de operação e engenharia.
+                  A etapa de compreensão usa exclusivamente as evidências registradas no fluxo investigativo e suas hipóteses explícitas relacionadas.
                 </p>
                 <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
-                  O problema central está na falta de alinhamento entre a demanda esperada e a capacidade real dos sistemas, que amplifica erros pequenos em interrupções maiores.
+                  Cada hipótese abaixo mostra o que está sustentando a conclusão, o que a contradiz e qual o status atual da investigação causal.
                 </div>
               </div>
 
@@ -168,17 +134,24 @@ export default function CompreenderPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Evidências</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Sinais que sustentam a leitura</h3>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Evidence Registry</h3>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Sinais foco
+                    Estruturado
                   </span>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {signals.map((signal) => (
-                    <span key={signal} className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-                      {signal}
-                    </span>
+                <div className="mt-4 grid gap-3">
+                  {evidence.map((item) => (
+                    <div key={item.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-base font-semibold text-slate-950">{item.title}</p>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
+                          {toPercent(item.confidence)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm leading-7 text-slate-600">Fonte: {item.source}</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Etapa: {item.investigationStep}</p>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -190,20 +163,22 @@ export default function CompreenderPage() {
                     <h3 className="mt-2 text-2xl font-semibold text-slate-950">Hipóteses principais</h3>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Confiança inicial
+                    Investigativas
                   </span>
                 </div>
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   {hypotheses.map((item) => (
-                    <div key={item.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                    <div key={item.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-base font-semibold text-slate-950">{item.title}</p>
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${item.color}`}>
-                          {item.confidence}
+                        <p className="text-base font-semibold text-slate-950">{item.description}</p>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-700">
+                          {item.status}
                         </span>
                       </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-600">{item.explanation}</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-600">Confiança: {toPercent(item.confidence)}</p>
+                      <p className="text-sm leading-7 text-slate-600">Evidências de suporte: {item.supportingEvidence.length}</p>
+                      <p className="text-sm leading-7 text-slate-600">Evidências contraditórias: {item.contradictingEvidence.length}</p>
                     </div>
                   ))}
                 </div>
@@ -225,19 +200,19 @@ export default function CompreenderPage() {
                     <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
                       <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Variabilidade do processo</p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Variações constantes no processo criam pontos de fricção entre planejamento e execução.
+                        Evidências com mesmo padrão aumentam confiança em hipóteses confirmadas.
                       </p>
                     </div>
                     <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
                       <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Lacunas de informação</p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Falhas na transferência de informações ampliam o impacto das instabilidades operacionais.
+                        Hipóteses ativas ainda dependem de evidência complementar para confirmação.
                       </p>
                     </div>
                     <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
                       <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Desvio de controle</p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Controle fraco permite que discrepâncias se tornem interrupções sistêmicas.
+                        Hipóteses descartadas são removidas da base de decisão para evitar ruído.
                       </p>
                     </div>
                   </div>

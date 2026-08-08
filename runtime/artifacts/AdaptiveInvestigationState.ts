@@ -20,10 +20,28 @@ export interface InvestigationQuestion {
 
 export interface HypothesisState {
   id: string;
-  statement: string;
-  rationale: string;
+  description: string;
   confidence: number;
+  supportingEvidence: string[];
+  contradictingEvidence: string[];
+  status: "Active" | "Confirmed" | "Discarded";
   keywords: string[];
+}
+
+export interface EvidenceItem {
+  id: string;
+  title: string;
+  source: string;
+  confidence: number;
+  investigationStep: string;
+}
+
+export interface EvidenceRegistry {
+  items: EvidenceItem[];
+}
+
+export interface HypothesisRegistry {
+  items: HypothesisState[];
 }
 
 export interface InvestigationTurn {
@@ -53,6 +71,8 @@ export interface AdaptiveInvestigationState {
   currentQuestion: InvestigationQuestion | null;
   askedQuestionIds: string[];
   knownInformation: string[];
+  evidenceRegistry: EvidenceRegistry;
+  hypothesisRegistry: HypothesisRegistry;
   hypotheses: HypothesisState[];
   history: InvestigationTurn[];
   remainingInformationGaps: string[];

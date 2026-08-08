@@ -1,99 +1,51 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
+import { readInvestigationState } from '@/lib/investigationStateStorage';
+import type { EvidenceItem, HypothesisState } from '@/runtime/artifacts/AdaptiveInvestigationState';
 
 const stages = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
-const executiveObjective = {
-  title: 'Reduzir o retrabalho da montagem das portas em 80% nos próximos 90 dias.',
-  confidence: '89%',
-  recommendation:
-    'Executar um plano em três frentes: estabilização imediata, eliminação da causa raiz e reforço sistêmico de prevenção.',
-};
-
 const methodsApplied = ['5G', '5 Whys', 'Ishikawa'];
 
-const phaseOneActions = [
-  {
-    title: 'Inspeção temporária em 100% dos pontos críticos',
-    explanation: 'Aplicar inspeção focada nos estágios finais de montagem até estabilizar o índice de retrabalho.',
-    impact: 'Redução imediata de defeitos de saída',
-    effort: 'Médio',
-    area: 'Qualidade + Produção',
-    deadline: 'Início em 24h',
-  },
-  {
-    title: 'Monitoramento por turno do setup da estação',
-    explanation: 'Registrar desvios de setup por turno para conter variações que elevam erro dimensional.',
-    impact: 'Queda rápida na variabilidade do processo',
-    effort: 'Baixo',
-    area: 'Produção',
-    deadline: 'Até D+2',
-  },
-  {
-    title: 'Contenção temporária de lotes de maior risco',
-    explanation: 'Aplicar gate de contenção para evitar envio de unidades com histórico de falha recorrente.',
-    impact: 'Menor risco de impacto ao cliente',
-    effort: 'Médio',
-    area: 'Qualidade + Logística',
-    deadline: 'Até D+3',
-  },
-];
+type ActionTrace = {
+  evidence: EvidenceItem;
+  hypothesis: HypothesisState;
+  decision: string;
+  action: ActionItem;
+};
 
-const phaseTwoActions = [
-  {
-    title: 'Ajuste de engenharia no ponto de fixação',
-    explanation: 'Revisar o ajuste de engenharia que hoje permite folga acima da faixa nominal em cenários críticos.',
-    impact: 'Eliminação da principal causa de retrabalho',
-    effort: 'Alto',
-    area: 'Engenharia de Processo',
-    deadline: 'Até D+21',
-  },
-  {
-    title: 'Revisão de parâmetros e validação de processo',
-    explanation: 'Atualizar parâmetros-chave e validar repetibilidade com amostragem ampliada por condição de uso.',
-    impact: 'Aumento da estabilidade e previsibilidade',
-    effort: 'Médio',
-    area: 'Engenharia + Qualidade',
-    deadline: 'Até D+14',
-  },
-  {
-    title: 'Atualização da instrução de trabalho e qualificação',
-    explanation: 'Padronizar sequência operacional revisada e requalificar operadores nas etapas críticas.',
-    impact: 'Execução consistente entre turnos',
-    effort: 'Médio',
-    area: 'Produção + RH Técnico',
-    deadline: 'Até D+10',
-  },
-];
+const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
-const phaseThreeActions = [
-  {
-    title: 'Revisar PFMEA e Plano de Controle',
-    explanation: 'Incorporar o modo de falha identificado e reforçar controles preventivos nos pontos de maior risco.',
-    impact: 'Prevenção estruturada de recorrência',
-    effort: 'Médio',
-    area: 'Qualidade',
-    deadline: 'Até D+30',
-  },
-  {
-    title: 'Atualizar matriz de treinamento e trabalho padrão',
-    explanation: 'Consolidar lições aprendidas e refletir mudanças no padrão operacional e na matriz de competências.',
-    impact: 'Sustentação do resultado no longo prazo',
-    effort: 'Baixo',
-    area: 'Produção + RH Técnico',
-    deadline: 'Até D+35',
-  },
-  {
-    title: 'Auditorias de processo e produto em ciclo curto',
-    explanation: 'Executar auditorias quinzenais para verificar aderência ao novo padrão e antecipar desvios.',
-    impact: 'Detecção precoce e melhoria contínua',
-    effort: 'Médio',
-    area: 'Qualidade + Operações',
-    deadline: 'Primeiro ciclo em D+15',
-  },
-];
+const deriveDecision = (description: string): string => {
+  const normalized = description.toLowerCase();
+
+  if (normalized.includes('variabilidade') || normalized.includes('processo')) {
+    return 'Padronizar parâmetros críticos e conter variação operacional imediatamente.';
+  }
+
+  if (normalized.includes('controle') || normalized.includes('planejamento')) {
+    return 'Reforçar governança de execução com checkpoints obrigatórios por etapa.';
+  }
+
+  if (normalized.includes('fornecedor') || normalized.includes('material') || normalized.includes('lote')) {
+    return 'Aplicar contenção de lotes e revisão do fluxo de qualificação de entrada.';
+  }
+
+  return 'Mitigar risco com ação incremental e validação contínua de evidências.';
+};
+
+const deriveActionFromEvidence = (hypothesis: HypothesisState, evidence: EvidenceItem): ActionItem => {
+  return {
+    title: `Ação para ${evidence.investigationStep.toLowerCase()}`,
+    explanation: `Aplicar resposta operacional baseada na evidência "${evidence.title}" para validar/estabilizar a hipótese: ${hypothesis.description}`,
+    impact: 'Aumentar aderência da execução à hipótese confirmada',
+    effort: evidence.confidence >= 0.75 ? 'Médio' : 'Baixo',
+    area: 'Operações + Qualidade',
+    deadline: evidence.confidence >= 0.75 ? 'Início em 24h' : 'Até D+3',
+  };
+};
 
 const expectedResults = [
   {
@@ -196,6 +148,70 @@ function ActionSection({
 
 export default function EvoluirPage() {
   const router = useRouter();
+  const [actionTraces, setActionTraces] = useState<ActionTrace[]>([]);
+
+  useEffect(() => {
+    const state = readInvestigationState();
+    if (!state) {
+      return;
+    }
+
+    const evidenceById = new Map(state.evidenceRegistry.items.map((item) => [item.id, item]));
+    const confirmedHypotheses = state.hypothesisRegistry.items.filter((item) => item.status === 'Confirmed');
+
+    const traces = confirmedHypotheses.flatMap((hypothesis) => {
+      return hypothesis.supportingEvidence
+        .map((evidenceId) => evidenceById.get(evidenceId))
+        .filter((item): item is EvidenceItem => Boolean(item))
+        .map((evidence) => {
+          const decision = deriveDecision(hypothesis.description);
+          return {
+            evidence,
+            hypothesis,
+            decision,
+            action: deriveActionFromEvidence(hypothesis, evidence),
+          };
+        });
+    });
+
+    setActionTraces(traces);
+  }, []);
+
+  const phaseOneActions = actionTraces.slice(0, 3).map((item) => item.action);
+  const phaseTwoActions = actionTraces.slice(3, 6).map((item) => item.action);
+  const phaseThreeActions = actionTraces.slice(6, 9).map((item) => item.action);
+
+  const executiveObjective = {
+    title: actionTraces.length > 0
+      ? 'Executar ações priorizadas exclusivamente a partir de hipóteses Confirmed e evidências verificadas.'
+      : 'Nenhuma ação recomendada até confirmação de hipóteses com evidências rastreáveis.',
+    confidence: actionTraces.length > 0
+      ? toPercent(actionTraces.reduce((acc, item) => acc + item.hypothesis.confidence, 0) / actionTraces.length)
+      : '0%',
+    recommendation: actionTraces.length > 0
+      ? actionTraces[0].decision
+      : 'Continue investigando para confirmar hipóteses antes de gerar plano de ação.',
+  };
+
+  const dynamicExpectedResults = actionTraces.length > 0
+    ? [
+        {
+          title: 'Qualidade',
+          value: `+${Math.min(25, 10 + actionTraces.length * 2)}%`,
+          description: 'Melhoria projetada pela execução de ações ligadas a evidências confirmadas.',
+        },
+        {
+          title: 'Cycle Time',
+          value: `-${Math.min(20, 6 + actionTraces.length)}%`,
+          description: 'Redução de retrabalho a partir de hipóteses confirmadas.',
+        },
+        {
+          title: 'Produtividade',
+          value: `+${Math.min(18, 5 + actionTraces.length)}%`,
+          description: 'Ganho esperado pela remoção das causas já comprovadas.',
+        },
+      ]
+    : expectedResults;
 
   const progressItems = useMemo(
     () =>
@@ -279,6 +295,29 @@ export default function EvoluirPage() {
                 actions={phaseThreeActions}
               />
 
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Rastreabilidade</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Why this recommendation?</h3>
+                <div className="mt-4 space-y-3">
+                  {actionTraces.map((item, index) => (
+                    <div key={`trace-${index}-${item.evidence.id}`} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+                      <p><strong>Evidence:</strong> {item.evidence.title} ({toPercent(item.evidence.confidence)})</p>
+                      <p className="text-slate-400">↓</p>
+                      <p><strong>Hypothesis:</strong> {item.hypothesis.description}</p>
+                      <p className="text-slate-400">↓</p>
+                      <p><strong>Decision:</strong> {item.decision}</p>
+                      <p className="text-slate-400">↓</p>
+                      <p><strong>Action:</strong> {item.action.title}</p>
+                    </div>
+                  ))}
+                  {actionTraces.length === 0 ? (
+                    <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+                      Sem hipóteses Confirmed e evidências conectadas, ações não são geradas nesta etapa.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
                   <div className="flex items-center justify-between gap-3">
@@ -291,7 +330,7 @@ export default function EvoluirPage() {
                     </span>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {expectedResults.map((result) => (
+                    {dynamicExpectedResults.map((result) => (
                       <div key={result.title} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold text-slate-950">{result.title}</p>
@@ -323,6 +362,12 @@ export default function EvoluirPage() {
                   </ul>
                 </div>
               </div>
+
+              {actionTraces.length === 0 ? (
+                <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-sm leading-7 text-amber-800">
+                  Nenhuma recomendação acionável foi publicada porque ainda não existem hipóteses Confirmed com evidências de suporte.
+                </div>
+              ) : null}
 
               <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
                 <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Ação e continuidade</p>

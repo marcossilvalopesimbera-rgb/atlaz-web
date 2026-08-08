@@ -61,25 +61,82 @@ const parseHypotheses = (value: unknown): AdaptiveInvestigationState["hypotheses
       throw new Error("Invalid AdaptiveInvestigationState");
     }
 
+    if (typeof item.id !== "string" || typeof item.confidence !== "number" || Number.isNaN(item.confidence)) {
+      throw new Error("Invalid AdaptiveInvestigationState");
+    }
+
+    const description =
+      typeof item.description === "string"
+        ? item.description
+        : typeof item.statement === "string"
+        ? item.statement
+        : undefined;
+
+    if (!description) {
+      throw new Error("Invalid AdaptiveInvestigationState");
+    }
+
+    const keywords = isStringArray(item.keywords) ? item.keywords : [];
+    const supportingEvidence = isStringArray(item.supportingEvidence) ? item.supportingEvidence : [];
+    const contradictingEvidence = isStringArray(item.contradictingEvidence) ? item.contradictingEvidence : [];
+    const status =
+      item.status === "Active" || item.status === "Confirmed" || item.status === "Discarded"
+        ? item.status
+        : "Active";
+
+    return {
+      id: item.id,
+      description,
+      confidence: item.confidence,
+      supportingEvidence,
+      contradictingEvidence,
+      status,
+      keywords,
+    };
+  });
+};
+
+const parseEvidenceRegistry = (value: unknown): AdaptiveInvestigationState["evidenceRegistry"] => {
+  if (!isPlainObject(value) || !Array.isArray(value.items)) {
+    throw new Error("Invalid AdaptiveInvestigationState");
+  }
+
+  const items = value.items.map((item) => {
+    if (!isPlainObject(item)) {
+      throw new Error("Invalid AdaptiveInvestigationState");
+    }
+
     if (
       typeof item.id !== "string" ||
-      typeof item.statement !== "string" ||
-      typeof item.rationale !== "string" ||
+      typeof item.title !== "string" ||
+      typeof item.source !== "string" ||
       typeof item.confidence !== "number" ||
       Number.isNaN(item.confidence) ||
-      !isStringArray(item.keywords)
+      typeof item.investigationStep !== "string"
     ) {
       throw new Error("Invalid AdaptiveInvestigationState");
     }
 
     return {
       id: item.id,
-      statement: item.statement,
-      rationale: item.rationale,
+      title: item.title,
+      source: item.source,
       confidence: item.confidence,
-      keywords: item.keywords,
+      investigationStep: item.investigationStep,
     };
   });
+
+  return { items };
+};
+
+const parseHypothesisRegistry = (value: unknown): AdaptiveInvestigationState["hypothesisRegistry"] => {
+  if (!isPlainObject(value) || !Array.isArray(value.items)) {
+    throw new Error("Invalid AdaptiveInvestigationState");
+  }
+
+  return {
+    items: parseHypotheses(value.items),
+  };
 };
 
 const parseHistory = (value: unknown): AdaptiveInvestigationState["history"] => {
@@ -169,6 +226,18 @@ export const AdaptiveInvestigationStateSchema = {
       throw new Error("Invalid AdaptiveInvestigationState");
     }
 
+    const parsedHypotheses = parseHypotheses(value.hypotheses);
+
+    const parsedEvidenceRegistry = value.evidenceRegistry
+      ? parseEvidenceRegistry(value.evidenceRegistry)
+      : {
+          items: [],
+        };
+
+    const parsedHypothesisRegistry = value.hypothesisRegistry
+      ? parseHypothesisRegistry(value.hypothesisRegistry)
+      : { items: parsedHypotheses };
+
     return {
       artifact: value.artifact,
       version: value.version,
@@ -180,7 +249,9 @@ export const AdaptiveInvestigationStateSchema = {
       currentQuestion: parseCurrentQuestion(value.currentQuestion),
       askedQuestionIds: value.askedQuestionIds,
       knownInformation: value.knownInformation,
-      hypotheses: parseHypotheses(value.hypotheses),
+      evidenceRegistry: parsedEvidenceRegistry,
+      hypothesisRegistry: parsedHypothesisRegistry,
+      hypotheses: parsedHypotheses,
       history: parseHistory(value.history),
       remainingInformationGaps: value.remainingInformationGaps,
       currentConfidence: value.currentConfidence,

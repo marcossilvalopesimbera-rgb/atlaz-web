@@ -1,48 +1,40 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
+import { readInvestigationState } from '@/lib/investigationStateStorage';
+import type { EvidenceItem, HypothesisState } from '@/runtime/artifacts/AdaptiveInvestigationState';
 
 const progressSteps = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
 
-const evidenceItems = [
-  {
-    title: 'Padrão recorrente',
-    description: 'Os sinais mais fortes apontam para o mesmo ponto de fricção entre planejamento e execução.',
-  },
-  {
-    title: 'Impacto concentrado',
-    description: 'Os efeitos foram mais visíveis em cenários críticos, onde pequenas variações amplificam riscos.',
-  },
-  {
-    title: 'Falta de visibilidade',
-    description: 'A transferência de informação entre times mostrou-se incompleta e pouco confiável.',
-  },
-];
-
 const methodsApplied = ['5G', '5 Whys', 'Ishikawa'];
 
-const hypotheses = [
-  {
-    title: 'Alinhamento de prioridades',
-    confidence: '86%',
-    description: 'A equipe opera com metas diferentes em momentos próximos, o que gera ruído de decisão.',
-    width: 'w-[86%]',
-  },
-  {
-    title: 'Capacidade operacional',
-    confidence: '74%',
-    description: 'A carga de trabalho parece exceder a capacidade de resposta em alguns pontos do fluxo.',
-    width: 'w-[74%]',
-  },
-  {
-    title: 'Controles insuficientes',
-    confidence: '68%',
-    description: 'Os check-points existentes não capturam todos os riscos antes que eles se tornem impacto.',
-    width: 'w-[68%]',
-  },
-];
+type DecisionCard = {
+  hypothesis: HypothesisState;
+  supportingEvidence: EvidenceItem[];
+  decision: string;
+};
+
+const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
+
+const deriveDecision = (description: string): string => {
+  const normalized = description.toLowerCase();
+
+  if (normalized.includes('variabilidade') || normalized.includes('processo')) {
+    return 'Padronizar parâmetros críticos e reforçar checkpoints operacionais por turno.';
+  }
+
+  if (normalized.includes('controle') || normalized.includes('planejamento')) {
+    return 'Reforçar governança entre planejamento e execução com critérios de aceite explícitos.';
+  }
+
+  if (normalized.includes('fornecedor') || normalized.includes('lote') || normalized.includes('material')) {
+    return 'Aplicar contenção de lotes e validação reforçada antes da liberação para produção.';
+  }
+
+  return 'Executar plano de mitigação incremental com validação de evidências em cada etapa.';
+};
 
 const evidenceUploads = [
   { label: 'Adicionar nota', description: 'Registrar uma nova observação' },
@@ -54,6 +46,41 @@ const evidenceUploads = [
 
 export default function DecidirPage() {
   const router = useRouter();
+  const [decisionCards, setDecisionCards] = useState<DecisionCard[]>([]);
+  const [confirmedEvidence, setConfirmedEvidence] = useState<EvidenceItem[]>([]);
+
+  useEffect(() => {
+    const state = readInvestigationState();
+
+    if (!state) {
+      return;
+    }
+
+    const evidenceById = new Map(state.evidenceRegistry.items.map((item) => [item.id, item]));
+
+    const confirmed = state.hypothesisRegistry.items
+      .filter((item) => item.status === 'Confirmed')
+      .sort((a, b) => b.confidence - a.confidence);
+
+    const cards = confirmed.map((hypothesis) => {
+      const supportingEvidence = hypothesis.supportingEvidence
+        .map((evidenceId) => evidenceById.get(evidenceId))
+        .filter((item): item is EvidenceItem => Boolean(item));
+
+      return {
+        hypothesis,
+        supportingEvidence,
+        decision: deriveDecision(hypothesis.description),
+      };
+    });
+
+    setDecisionCards(cards);
+    setConfirmedEvidence(
+      cards
+        .flatMap((card) => card.supportingEvidence)
+        .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
+    );
+  }, []);
 
   const progressItems = useMemo(
     () =>
@@ -106,16 +133,20 @@ export default function DecidirPage() {
               <div className="rounded-[2rem] border-2 border-slate-300 bg-white p-10 shadow-md shadow-slate-950/10">
                 <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Conclusão principal</p>
                 <h2 className="mt-3 text-3xl font-semibold leading-tight text-slate-950">
-                  A falha central não é apenas operacional, mas de alinhamento entre o que foi planejado e o que a equipe consegue executar com estabilidade.
+                  {decisionCards.length > 0
+                    ? decisionCards[0].decision
+                    : 'Ainda não há hipóteses confirmadas para consolidar uma recomendação.'}
                 </h2>
 
                 <div className="mt-6 rounded-[1.5rem] bg-[#5B5CEB] p-6 text-white">
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-200">Recomendação executiva</p>
                   <p className="mt-3 text-lg font-semibold leading-8">
-                    Reforçar o fluxo entre decisão e execução com foco em controles críticos e clareza de responsabilidade.
+                    {decisionCards.length > 0
+                      ? 'Decisões geradas exclusivamente a partir de hipóteses Confirmed e evidências rastreadas.'
+                      : 'Continue investigando até confirmar hipóteses para habilitar recomendações.'}
                   </p>
                   <p className="mt-3 text-sm leading-7 text-slate-200/90">
-                    As evidências sugerem que pequenas variações não tratadas se tornam interrupções maiores quando o alinhamento entre times fica fraco.
+                    Nenhuma recomendação é publicada sem trilha causal Evidence → Hypothesis → Decision.
                   </p>
                 </div>
               </div>
@@ -132,12 +163,20 @@ export default function DecidirPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3">
-                  {evidenceItems.map((item) => (
-                    <div key={item.title} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                  {confirmedEvidence.map((item) => (
+                    <div key={item.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
                       <p className="text-base font-semibold text-slate-950">{item.title}</p>
-                      <p className="mt-2 text-sm leading-7 text-slate-600">{item.description}</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-600">Fonte: {item.source}</p>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                        Confiança {toPercent(item.confidence)} · Etapa {item.investigationStep}
+                      </p>
                     </div>
                   ))}
+                  {confirmedEvidence.length === 0 ? (
+                    <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+                      Sem evidências confirmadas suficientes para gerar recomendação nesta etapa.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -146,18 +185,23 @@ export default function DecidirPage() {
                   <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Insights</p>
                   <h3 className="mt-2 text-xl font-semibold text-slate-950">Ranking de confiança das hipóteses</h3>
                   <div className="mt-4 space-y-5">
-                    {hypotheses.map((item) => (
-                      <div key={item.title}>
+                    {decisionCards.map((card) => (
+                      <div key={card.hypothesis.id}>
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                          <span className="text-sm font-semibold text-[#5B5CEB]">{item.confidence}</span>
+                          <p className="text-sm font-semibold text-slate-950">{card.hypothesis.description}</p>
+                          <span className="text-sm font-semibold text-[#5B5CEB]">{toPercent(card.hypothesis.confidence)}</span>
                         </div>
-                        <p className="mt-2 text-sm leading-7 text-slate-600">{item.description}</p>
+                        <p className="mt-2 text-sm leading-7 text-slate-600">
+                          Status: {card.hypothesis.status} · Evidências de suporte: {card.supportingEvidence.length}
+                        </p>
                         <div className="mt-3 h-2 rounded-full bg-slate-200">
-                          <div className={`h-2 rounded-full bg-[#5B5CEB] ${item.width}`} />
+                          <div className="h-2 rounded-full bg-[#5B5CEB]" style={{ width: toPercent(card.hypothesis.confidence) }} />
                         </div>
                       </div>
                     ))}
+                    {decisionCards.length === 0 ? (
+                      <p className="text-sm leading-7 text-slate-600">Sem hipóteses Confirmed para ranking decisório.</p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -171,6 +215,27 @@ export default function DecidirPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Rastreabilidade</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Why this recommendation?</h3>
+                <div className="mt-4 space-y-3">
+                  {decisionCards.map((card) => (
+                    <div key={`trace-${card.hypothesis.id}`} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+                      <p><strong>Evidence:</strong> {card.supportingEvidence.map((item) => item.title).join(' | ') || 'N/A'}</p>
+                      <p className="text-slate-400">↓</p>
+                      <p><strong>Hypothesis:</strong> {card.hypothesis.description}</p>
+                      <p className="text-slate-400">↓</p>
+                      <p><strong>Decision:</strong> {card.decision}</p>
+                    </div>
+                  ))}
+                  {decisionCards.length === 0 ? (
+                    <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+                      A recomendação será exibida quando houver hipóteses Confirmed conectadas a evidências coletadas.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

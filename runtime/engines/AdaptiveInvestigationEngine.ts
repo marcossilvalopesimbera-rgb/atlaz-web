@@ -1,5 +1,6 @@
 import {
   AdaptiveInvestigationState,
+  EvidenceItem,
   HypothesisState,
   InvestigationObjective,
   InvestigationQuestion,
@@ -124,9 +125,11 @@ const buildInitialHypotheses = (operationalObject: OperationalObject): Hypothesi
 
   const base = domains.map((domain, index) => ({
     id: `h-${index + 1}-${normalize(domain).replace(/[^a-z0-9]+/g, "-")}`,
-    statement: `A principal causa está relacionada ao domínio ${domain}.`,
-    rationale: `O relato inicial indica sinais concentrados em ${domain}.`,
+    description: `A principal causa está relacionada ao domínio ${domain}.`,
     confidence: clampConfidence(operationalObject.confidence - 0.08 + index * 0.02),
+    supportingEvidence: [],
+    contradictingEvidence: [],
+    status: "Active" as const,
     keywords: domainKeywords(domain),
   }));
 
@@ -138,19 +141,35 @@ const buildInitialHypotheses = (operationalObject: OperationalObject): Hypothesi
     ...base,
     {
       id: "h-processo",
-      statement: "A variabilidade do processo está amplificando o problema.",
-      rationale: "Desvios operacionais recorrentes podem explicar sintomas em múltiplos pontos.",
+      description: "A variabilidade do processo está amplificando o problema.",
       confidence: clampConfidence(operationalObject.confidence - 0.04),
+      supportingEvidence: [],
+      contradictingEvidence: [],
+      status: "Active" as const,
       keywords: ["variacao", "processo", "desvio", "instabilidade"],
     },
     {
       id: "h-controle",
-      statement: "Há desvio de controle entre planejamento e execução.",
-      rationale: "Quebras na disciplina de controle costumam aumentar falhas em cascata.",
+      description: "Há desvio de controle entre planejamento e execução.",
       confidence: clampConfidence(operationalObject.confidence - 0.06),
+      supportingEvidence: [],
+      contradictingEvidence: [],
+      status: "Active" as const,
       keywords: ["controle", "planejamento", "execucao", "checklist", "padrao"],
     },
   ].slice(0, 4);
+};
+
+const updateHypothesisStatus = (hypothesis: HypothesisState): HypothesisState["status"] => {
+  if (hypothesis.confidence >= 0.78 && hypothesis.supportingEvidence.length > 0) {
+    return "Confirmed";
+  }
+
+  if (hypothesis.confidence <= 0.32 && hypothesis.contradictingEvidence.length > 0) {
+    return "Discarded";
+  }
+
+  return "Active";
 };
 
 const buildInitialGaps = (operationalObject: OperationalObject): string[] => {
@@ -274,7 +293,7 @@ const QUESTION_TEMPLATES: readonly QuestionTemplate[] = [
       if (!topHypothesis) {
         return "Qual evidência objetiva falta para aumentar a confiança da conclusão?";
       }
-      return `Qual evidência objetiva ainda falta para confirmar ou descartar a hipótese: \"${topHypothesis.statement}\"?`;
+      return `Qual evidência objetiva ainda falta para confirmar ou descartar a hipótese: \"${topHypothesis.description}\"?`;
     },
     placeholder: "Informe qual dado, teste ou observação falta para fechar a incerteza principal.",
     whyAsked: () => "A investigação deve encerrar com clareza sobre a evidência faltante mais crítica.",
@@ -357,7 +376,8 @@ const scoreAnswerSignal = (answer: string): number => {
 
 const updateHypothesesFromAnswer = (
   hypotheses: HypothesisState[],
-  answer: string
+  answer: string,
+  evidenceId: string
 ): {
   hypotheses: HypothesisState[];
   strengthenedHypotheses: string[];
@@ -384,9 +404,27 @@ const updateHypothesesFromAnswer = (
       weakenedHypotheses.push(hypothesis.id);
     }
 
+    const nextSupportingEvidence = hasKeyword && !hasNegation
+      ? unique([...hypothesis.supportingEvidence, evidenceId])
+      : hypothesis.supportingEvidence;
+
+    const nextContradictingEvidence = hasKeyword && hasNegation
+      ? unique([...hypothesis.contradictingEvidence, evidenceId])
+      : hypothesis.contradictingEvidence;
+
+    const nextConfidence = clampConfidence(hypothesis.confidence + delta);
+
     return {
       ...hypothesis,
-      confidence: clampConfidence(hypothesis.confidence + delta),
+      confidence: nextConfidence,
+      supportingEvidence: nextSupportingEvidence,
+      contradictingEvidence: nextContradictingEvidence,
+      status: updateHypothesisStatus({
+        ...hypothesis,
+        confidence: nextConfidence,
+        supportingEvidence: nextSupportingEvidence,
+        contradictingEvidence: nextContradictingEvidence,
+      }),
     };
   });
 
@@ -427,6 +465,20 @@ export default class AdaptiveInvestigationEngine {
       currentQuestion: null,
       askedQuestionIds: [],
       knownInformation: [operationalObject.problemStatement],
+      evidenceRegistry: {
+        items: [
+          {
+            id: createId(),
+            title: "Interpretação inicial do problema",
+            source: "Problem Interpreter",
+            confidence: clampConfidence(operationalObject.confidence),
+            investigationStep: "Definir",
+          },
+        ],
+      },
+      hypothesisRegistry: {
+        items: buildInitialHypotheses(operationalObject),
+      },
       hypotheses: buildInitialHypotheses(operationalObject),
       history: [],
       remainingInformationGaps: buildInitialGaps(operationalObject),
@@ -447,7 +499,15 @@ export default class AdaptiveInvestigationEngine {
     }
 
     const confidenceBefore = state.currentConfidence;
-    const hypothesisUpdate = updateHypothesesFromAnswer(state.hypotheses, trimmedAnswer);
+    const evidenceItem: EvidenceItem = {
+      id: createId(),
+      title: state.currentQuestion.question,
+      source: `Resposta do usuário: ${trimmedAnswer}`,
+      confidence: clampConfidence(Math.max(0.2, scoreAnswerSignal(trimmedAnswer) + 0.55)),
+      investigationStep: state.currentQuestion.step,
+    };
+
+    const hypothesisUpdate = updateHypothesesFromAnswer(state.hypotheses, trimmedAnswer, evidenceItem.id);
     const answerScore = scoreAnswerSignal(trimmedAnswer);
 
     const confidenceDelta =
@@ -484,6 +544,12 @@ export default class AdaptiveInvestigationEngine {
       updatedAt: new Date().toISOString(),
       currentConfidence: confidenceAfter,
       hypotheses: hypothesisUpdate.hypotheses,
+      evidenceRegistry: {
+        items: [...state.evidenceRegistry.items, evidenceItem],
+      },
+      hypothesisRegistry: {
+        items: hypothesisUpdate.hypotheses,
+      },
       history: [...state.history, turn],
       askedQuestionIds: unique([...state.askedQuestionIds, state.currentQuestion.id]),
       knownInformation: unique([...state.knownInformation, trimmedAnswer]),
