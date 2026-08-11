@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0f172a"/>
+  <rect x="56" y="56" width="1088" height="518" rx="36" fill="#111827" stroke="#5B5CEB" stroke-width="4"/>
+  <text x="112" y="240" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="700">ATLAZ</text>
+  <text x="112" y="316" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="34">Cognitive Investigation Platform</text>
+  <text x="112" y="420" fill="#818cf8" font-family="Segoe UI, Arial, sans-serif" font-size="28">Investigar • Compreender • Decidir • Evoluir</text>
+</svg>

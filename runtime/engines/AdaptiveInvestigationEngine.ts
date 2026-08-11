@@ -2,15 +2,36 @@ import {
   AdaptiveInvestigationState,
   EvidenceItem,
   HypothesisState,
+  InvestigationOutput,
   InvestigationObjective,
   InvestigationQuestion,
   InvestigationTurn,
+  LifecyclePromotionAuditEntry,
 } from "../artifacts/AdaptiveInvestigationState";
 import { OperationalObject } from "../artifacts/OperationalObject";
+import ConfidenceEvidenceFramework from "../cef/ConfidenceEvidenceFramework";
+import DecisionIntegrityGuard from "../governance/DecisionIntegrityGuard";
+import HypothesisLifecycleGovernor, {
+  createLifecyclePromotionAuditEntry,
+} from "../governance/HypothesisLifecycleGovernor";
+import RuntimeExecutionTelemetry, { RuntimeExecutionContext } from "../telemetry/RuntimeExecutionTelemetry";
+import EvidenceSemanticInterpreter from "../semantic/EvidenceSemanticInterpreter";
+import CompetitiveHypothesisManager from "../hypotheses/CompetitiveHypothesisManager";
+import EvidenceAcquisitionPlanner from "../planning/EvidenceAcquisitionPlanner";
+import DomainExpertCommunicationLayer from "../communication/DomainExpertCommunicationLayer";
+import CognitiveMemoryWindow from "../memory/CognitiveMemoryWindow";
 
-const MIN_CONFIDENCE = 0.15;
-const MAX_CONFIDENCE = 0.98;
-const STATE_VERSION = "1.0.0";
+const MIN_CONFIDENCE = 0;
+const MAX_CONFIDENCE = 1;
+const STATE_VERSION = "1.1.0";
+const confidenceEvidenceFramework = new ConfidenceEvidenceFramework();
+const lifecycleGovernor = new HypothesisLifecycleGovernor();
+const decisionIntegrityGuard = new DecisionIntegrityGuard();
+const evidenceSemanticInterpreter = new EvidenceSemanticInterpreter();
+const competitiveHypothesisManager = new CompetitiveHypothesisManager();
+const evidenceAcquisitionPlanner = new EvidenceAcquisitionPlanner();
+const domainExpertCommunicationLayer = new DomainExpertCommunicationLayer();
+const cognitiveMemoryWindow = new CognitiveMemoryWindow();
 
 type InvestigationContext = {
   combinedText: string;
@@ -34,6 +55,21 @@ type QuestionTemplate = {
   uncertaintyTarget: string;
   objective: InvestigationObjective;
   isApplicable: (context: InvestigationContext, state: AdaptiveInvestigationState) => boolean;
+};
+
+const buildQuestionJustification = (
+  state: AdaptiveInvestigationState,
+  question: string,
+  uncertaintyTarget: string
+) => {
+  const strongest = [...state.hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
+  return {
+    reason: `Investigar ${uncertaintyTarget} para reduzir incerteza e validar a hipótese dominante ${strongest?.description ?? "principal"}.`,
+    supports: strongest ? [strongest.id] : [],
+    expectedInformationGain: clampConfidence((strongest?.confidence ?? 0.5) + 0.2),
+    domain: state.operationalObject.domain,
+    expertPattern: "domain-specialist-questioning",
+  };
 };
 
 const clampConfidence = (value: number): number => {
@@ -74,6 +110,18 @@ const createId = (): string => {
   }
 
   return `atlaz-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+};
+
+const createExecutionContext = (
+  runtimeId: string,
+  provided?: Partial<RuntimeExecutionContext>
+): RuntimeExecutionContext => {
+  return {
+    sessionId: provided?.sessionId ?? `session-${createId()}`,
+    runtimeId,
+    requestId: provided?.requestId ?? `req-${createId()}`,
+    retryCount: provided?.retryCount ?? 0,
+  };
 };
 
 const buildContext = (state: AdaptiveInvestigationState): InvestigationContext => {
@@ -122,13 +170,23 @@ const domainKeywords = (domain: string): string[] => {
 
 const buildInitialHypotheses = (operationalObject: OperationalObject): HypothesisState[] => {
   const domains = unique([operationalObject.domain, ...operationalObject.suspectedDomains]).slice(0, 4);
+  const createdAt = new Date().toISOString();
 
   const base = domains.map((domain, index) => ({
     id: `h-${index + 1}-${normalize(domain).replace(/[^a-z0-9]+/g, "-")}`,
     description: `A principal causa está relacionada ao domínio ${domain}.`,
     confidence: clampConfidence(operationalObject.confidence - 0.08 + index * 0.02),
+    lifecycleStatus: "Draft" as const,
     supportingEvidence: [],
     contradictingEvidence: [],
+    missingEvidence: [],
+    nextRecommendedInvestigation: "Coletar evidência objetiva para reduzir incerteza sobre causalidade.",
+    reasoningSummary:
+      "Hipótese em Draft: existe possibilidade causal, porém ainda sem evidências objetivas suficientes para suporte ou confirmação.",
+    confidenceHistory: confidenceEvidenceFramework.buildInitialHistory(
+      createdAt,
+      clampConfidence(operationalObject.confidence - 0.08 + index * 0.02)
+    ),
     status: "Active" as const,
     keywords: domainKeywords(domain),
   }));
@@ -143,8 +201,17 @@ const buildInitialHypotheses = (operationalObject: OperationalObject): Hypothesi
       id: "h-processo",
       description: "A variabilidade do processo está amplificando o problema.",
       confidence: clampConfidence(operationalObject.confidence - 0.04),
+      lifecycleStatus: "Draft" as const,
       supportingEvidence: [],
       contradictingEvidence: [],
+      missingEvidence: [],
+      nextRecommendedInvestigation: "Comparar dados de casos afetados e não afetados para testar variabilidade.",
+      reasoningSummary:
+        "Hipótese em Draft: requer evidência de contraste e medição para evoluir no ciclo de vida.",
+      confidenceHistory: confidenceEvidenceFramework.buildInitialHistory(
+        createdAt,
+        clampConfidence(operationalObject.confidence - 0.04)
+      ),
       status: "Active" as const,
       keywords: ["variacao", "processo", "desvio", "instabilidade"],
     },
@@ -152,24 +219,21 @@ const buildInitialHypotheses = (operationalObject: OperationalObject): Hypothesi
       id: "h-controle",
       description: "Há desvio de controle entre planejamento e execução.",
       confidence: clampConfidence(operationalObject.confidence - 0.06),
+      lifecycleStatus: "Draft" as const,
       supportingEvidence: [],
       contradictingEvidence: [],
+      missingEvidence: [],
+      nextRecommendedInvestigation: "Levantar evidências de aderência entre padrão planejado e execução real.",
+      reasoningSummary:
+        "Hipótese em Draft: precisa de evidência observável para passar de possibilidade para probabilidade.",
+      confidenceHistory: confidenceEvidenceFramework.buildInitialHistory(
+        createdAt,
+        clampConfidence(operationalObject.confidence - 0.06)
+      ),
       status: "Active" as const,
       keywords: ["controle", "planejamento", "execucao", "checklist", "padrao"],
     },
   ].slice(0, 4);
-};
-
-const updateHypothesisStatus = (hypothesis: HypothesisState): HypothesisState["status"] => {
-  if (hypothesis.confidence >= 0.78 && hypothesis.supportingEvidence.length > 0) {
-    return "Confirmed";
-  }
-
-  if (hypothesis.confidence <= 0.32 && hypothesis.contradictingEvidence.length > 0) {
-    return "Discarded";
-  }
-
-  return "Active";
 };
 
 const buildInitialGaps = (operationalObject: OperationalObject): string[] => {
@@ -321,15 +385,41 @@ const buildQuestionFromTemplate = (
     return null;
   }
 
+  const memoryCandidate = {
+    id: template.id,
+    question: questionText,
+    uncertaintyTarget: template.uncertaintyTarget,
+  };
+
+  if (!cognitiveMemoryWindow.shouldAskQuestion(memoryCandidate, state)) {
+    return null;
+  }
+
+  const specialized = domainExpertCommunicationLayer.composeQuestion({
+    domain: state.operationalObject.domain,
+    context: state.operationalObject.problemStatement,
+    targetEvidence: { reason: template.whyAsked(context, state) },
+    state,
+  });
+
+  const question = specializeQuestion(questionText, specialized.question, state.operationalObject.domain);
+
   return {
     id: template.id,
     step: template.step,
     intro: template.intro,
-    question: questionText,
+    question,
     placeholder: template.placeholder,
     whyAsked: template.whyAsked(context, state),
     uncertaintyTarget: template.uncertaintyTarget,
     objective: template.objective,
+    questionJustification: {
+      ...buildQuestionJustification(state, question, template.uncertaintyTarget),
+      reason: `${specialized.justification.reason} ${template.whyAsked(context, state)}`,
+      domain: state.operationalObject.domain,
+      expertPattern: specialized.justification.expertPattern,
+      expectedInformationGain: clampConfidence(specialized.justification.expectedInformationGain),
+    },
   };
 };
 
@@ -350,88 +440,48 @@ const chooseNextQuestion = (state: AdaptiveInvestigationState): InvestigationQue
   return null;
 };
 
-const scoreAnswerSignal = (answer: string): number => {
-  const normalizedAnswer = normalize(answer);
 
-  let score = 0;
-
-  if (normalizedAnswer.length >= 60) {
-    score += 0.015;
+const specializeQuestion = (fallback: string, specialized: string, domain: string): string => {
+  const normalizedDomain = domain.toLowerCase();
+  if (normalizedDomain.includes("farmac") || normalizedDomain.includes("automot") || normalizedDomain.includes("hospital") || normalizedDomain.includes("finance")) {
+    return specialized;
   }
-
-  if (containsPattern(normalizedAnswer, /(medicao|dado|registro|taxa|indicador|amostra|relatorio|teste)/)) {
-    score += 0.055;
-  }
-
-  if (containsPattern(normalizedAnswer, /(troca|mudanca|alteracao|novo lote|novo fornecedor|setup)/)) {
-    score += 0.035;
-  }
-
-  if (containsPattern(normalizedAnswer, /(nao sei|sem dado|desconhec|nao medido|ainda nao)/)) {
-    score -= 0.05;
-  }
-
-  return score;
+  return fallback;
 };
 
-const updateHypothesesFromAnswer = (
-  hypotheses: HypothesisState[],
-  answer: string,
-  evidenceId: string
-): {
-  hypotheses: HypothesisState[];
-  strengthenedHypotheses: string[];
-  weakenedHypotheses: string[];
-} => {
-  const normalizedAnswer = normalize(answer);
+const buildInvestigationOutput = (state: AdaptiveInvestigationState): InvestigationOutput => {
+  const strongest = [...state.hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
+  const supporting = state.evidenceRegistry.items.filter((item) => item.relation === "Support");
+  const contradicting = state.evidenceRegistry.items.filter((item) => item.relation === "Contradiction");
+  const decision = decisionIntegrityGuard.evaluate(state);
+  const targetEvidence = evidenceAcquisitionPlanner.plan(state);
 
-  const strengthenedHypotheses: string[] = [];
-  const weakenedHypotheses: string[] = [];
-
-  const updated = hypotheses.map((hypothesis) => {
-    const hasKeyword = hypothesis.keywords.some((keyword) => normalizedAnswer.includes(normalize(keyword)));
-    const hasNegation = containsPattern(normalizedAnswer, /(nao ocorre|nao afeta|descartado|invalido|sem relacao)/);
-
-    let delta = 0;
-
-    if (hasKeyword) {
-      delta += 0.045;
-      strengthenedHypotheses.push(hypothesis.id);
-    }
-
-    if (hasKeyword && hasNegation) {
-      delta -= 0.065;
-      weakenedHypotheses.push(hypothesis.id);
-    }
-
-    const nextSupportingEvidence = hasKeyword && !hasNegation
-      ? unique([...hypothesis.supportingEvidence, evidenceId])
-      : hypothesis.supportingEvidence;
-
-    const nextContradictingEvidence = hasKeyword && hasNegation
-      ? unique([...hypothesis.contradictingEvidence, evidenceId])
-      : hypothesis.contradictingEvidence;
-
-    const nextConfidence = clampConfidence(hypothesis.confidence + delta);
-
-    return {
-      ...hypothesis,
-      confidence: nextConfidence,
-      supportingEvidence: nextSupportingEvidence,
-      contradictingEvidence: nextContradictingEvidence,
-      status: updateHypothesisStatus({
-        ...hypothesis,
-        confidence: nextConfidence,
-        supportingEvidence: nextSupportingEvidence,
-        contradictingEvidence: nextContradictingEvidence,
-      }),
-    };
-  });
+  const recommendedInvestigation =
+    strongest?.nextRecommendedInvestigation ||
+    state.remainingInformationGaps[0] ||
+    "Coletar evidências objetivas adicionais antes de consolidar decisão.";
 
   return {
-    hypotheses: updated,
-    strengthenedHypotheses: unique(strengthenedHypotheses),
-    weakenedHypotheses: unique(weakenedHypotheses),
+    problem: state.operationalObject.problemStatement,
+    hypotheses: state.hypotheses.map((hypothesis) => ({
+      id: hypothesis.id,
+      description: hypothesis.description,
+      confidence: hypothesis.confidence,
+      lifecycleStatus: hypothesis.lifecycleStatus,
+      reasoningSummary: hypothesis.reasoningSummary,
+    })),
+    confidence: {
+      global: strongest?.confidence ?? state.currentConfidence,
+      strongestHypothesisId: strongest?.id ?? null,
+    },
+    evidence: {
+      supporting,
+      contradicting,
+    },
+    missingEvidence: unique(state.hypotheses.flatMap((hypothesis) => hypothesis.missingEvidence)),
+    recommendedInvestigation,
+    targetEvidence,
+    decision,
   };
 };
 
@@ -451,79 +501,317 @@ const updateInformationGaps = (
 };
 
 export default class AdaptiveInvestigationEngine {
-  public initialize(operationalObject: OperationalObject): AdaptiveInvestigationState {
+  public initialize(
+    operationalObject: OperationalObject,
+    executionContext?: Partial<RuntimeExecutionContext>
+  ): AdaptiveInvestigationState {
+    const runtimeId = createId();
+    const telemetry = new RuntimeExecutionTelemetry(createExecutionContext(runtimeId, executionContext));
     const createdAt = new Date().toISOString();
 
-    const state: AdaptiveInvestigationState = {
-      artifact: "AdaptiveInvestigationState",
-      version: STATE_VERSION,
-      investigationId: createId(),
-      createdAt,
-      updatedAt: createdAt,
-      status: "ongoing",
-      operationalObject,
-      currentQuestion: null,
-      askedQuestionIds: [],
-      knownInformation: [operationalObject.problemStatement],
-      evidenceRegistry: {
-        items: [
-          {
-            id: createId(),
-            title: "Interpretação inicial do problema",
-            source: "Problem Interpreter",
-            confidence: clampConfidence(operationalObject.confidence),
-            investigationStep: "Definir",
-          },
-        ],
-      },
-      hypothesisRegistry: {
-        items: buildInitialHypotheses(operationalObject),
-      },
-      hypotheses: buildInitialHypotheses(operationalObject),
-      history: [],
-      remainingInformationGaps: buildInitialGaps(operationalObject),
-      currentConfidence: clampConfidence(operationalObject.confidence),
-    };
+    try {
+      telemetry.markModuleStart("runtime.initialize");
+      telemetry.addEvent("RuntimeInitializationStarted", "Inicialização do runtime iniciada.");
 
-    return {
-      ...state,
-      currentQuestion: chooseNextQuestion(state),
-    };
+      const initialHypotheses = buildInitialHypotheses(operationalObject).map((hypothesis) => {
+        const missingEvidence = confidenceEvidenceFramework.computeMissingEvidence(
+          operationalObject.requiredInformation,
+          hypothesis
+        );
+
+        return {
+          ...hypothesis,
+          missingEvidence,
+        };
+      });
+
+      const state: AdaptiveInvestigationState = {
+        artifact: "AdaptiveInvestigationState",
+        version: STATE_VERSION,
+        investigationId: runtimeId,
+        createdAt,
+        updatedAt: createdAt,
+        status: "ongoing",
+        operationalObject,
+        currentQuestion: null,
+        askedQuestionIds: [],
+        knownInformation: [operationalObject.problemStatement],
+        evidenceRegistry: {
+          items: [
+            {
+              id: createId(),
+              origin: "Problem Interpreter",
+              question: "Resumo estruturado do problema inicial",
+              answer: operationalObject.problemStatement,
+              timestamp: createdAt,
+              title: "Interpretação inicial do problema",
+              source: "Problem Interpreter",
+              confidence: clampConfidence(operationalObject.confidence),
+              evidenceType: "ProcessObservation",
+              evidenceCategory: "Contextual",
+              weight: 0.45,
+              weightLevel: "Medium",
+              relatedHypothesisId: "contexto-global",
+              relation: "Neutral",
+              temporalCorrelation: 0.6,
+              consistency: 0.7,
+              provenance: {
+                kind: "ContextualObservation",
+                source: "Problem Interpreter",
+                capturedAt: createdAt,
+                confidence: clampConfidence(operationalObject.confidence),
+                consistency: 0.7,
+                temporalCorrelation: 0.6,
+              },
+              investigationStep: "Definir",
+            },
+          ],
+        },
+        hypothesisRegistry: {
+          items: initialHypotheses,
+        },
+        hypotheses: initialHypotheses,
+        history: [],
+        lifecycleAuditTrail: [],
+        remainingInformationGaps: buildInitialGaps(operationalObject),
+        currentConfidence: clampConfidence(operationalObject.confidence),
+        investigationOutput: {
+          problem: operationalObject.problemStatement,
+          hypotheses: initialHypotheses.map((hypothesis) => ({
+            id: hypothesis.id,
+            description: hypothesis.description,
+            confidence: hypothesis.confidence,
+            lifecycleStatus: hypothesis.lifecycleStatus,
+            reasoningSummary: hypothesis.reasoningSummary,
+          })),
+          confidence: {
+            global: clampConfidence(operationalObject.confidence),
+            strongestHypothesisId: initialHypotheses[0]?.id ?? null,
+          },
+          evidence: {
+            supporting: [],
+            contradicting: [],
+          },
+          missingEvidence: unique(initialHypotheses.flatMap((hypothesis) => hypothesis.missingEvidence)),
+          recommendedInvestigation: operationalObject.requiredInformation[0] || "Iniciar coleta objetiva de evidências.",
+          decision: {
+            status: "insufficient-evidence",
+            rationale: "A investigação foi iniciada e ainda não possui evidência suficiente para decisão.",
+          },
+        },
+        runtimeTelemetry: [],
+      };
+
+      const nextQuestion = chooseNextQuestion(state);
+      const nextState: AdaptiveInvestigationState = {
+        ...state,
+        currentQuestion: nextQuestion,
+        status: nextQuestion ? "ongoing" : "ready-for-synthesis",
+      };
+
+      telemetry.markModuleEnd("runtime.initialize");
+      telemetry.addEvent("RuntimeInitializationCompleted", "Inicialização do runtime concluída com sucesso.");
+      telemetry.markSuccess();
+
+      return {
+        ...nextState,
+        investigationOutput: buildInvestigationOutput(nextState),
+        runtimeTelemetry: [telemetry.finalize()],
+      };
+    } catch (error) {
+      telemetry.addError("runtime.initialize", error instanceof Error ? error.message : "Unknown initialization error");
+      telemetry.markModuleEnd("runtime.initialize");
+      telemetry.addEvent("RuntimeInitializationFailed", "Inicialização do runtime falhou.");
+      telemetry.finalize();
+      throw error;
+    }
   }
 
-  public registerAnswer(state: AdaptiveInvestigationState, answer: string): AdaptiveInvestigationState {
+  public registerAnswer(
+    state: AdaptiveInvestigationState,
+    answer: string,
+    executionContext?: Partial<RuntimeExecutionContext>
+  ): AdaptiveInvestigationState {
+    const telemetry = new RuntimeExecutionTelemetry(
+      createExecutionContext(state.investigationId, executionContext)
+    );
     const trimmedAnswer = answer.trim();
 
-    if (!state.currentQuestion || trimmedAnswer.length === 0) {
-      return state;
+    telemetry.markModuleStart("runtime.registerAnswer");
+    telemetry.addEvent("AnswerRegistrationStarted", "Registro de resposta investigativa iniciado.");
+
+    if (!state.currentQuestion) {
+      telemetry.markInterrupted("MissingCurrentQuestion");
+      telemetry.addEvent("AnswerRegistrationInterrupted", "Registro interrompido: runtime sem currentQuestion.");
+      telemetry.markModuleEnd("runtime.registerAnswer");
+      const interruptedTrace = telemetry.finalize();
+      return {
+        ...state,
+        runtimeTelemetry: [...state.runtimeTelemetry, interruptedTrace].slice(-40),
+      };
     }
 
-    const confidenceBefore = state.currentConfidence;
-    const evidenceItem: EvidenceItem = {
-      id: createId(),
-      title: state.currentQuestion.question,
-      source: `Resposta do usuário: ${trimmedAnswer}`,
-      confidence: clampConfidence(Math.max(0.2, scoreAnswerSignal(trimmedAnswer) + 0.55)),
-      investigationStep: state.currentQuestion.step,
-    };
+    if (trimmedAnswer.length === 0) {
+      telemetry.markInterrupted("EmptyAnswer");
+      telemetry.addEvent("AnswerRegistrationInterrupted", "Registro interrompido: resposta vazia.");
+      telemetry.markModuleEnd("runtime.registerAnswer");
+      const interruptedTrace = telemetry.finalize();
+      return {
+        ...state,
+        runtimeTelemetry: [...state.runtimeTelemetry, interruptedTrace].slice(-40),
+      };
+    }
 
-    const hypothesisUpdate = updateHypothesesFromAnswer(state.hypotheses, trimmedAnswer, evidenceItem.id);
-    const answerScore = scoreAnswerSignal(trimmedAnswer);
+    try {
+      const confidenceBefore = state.currentConfidence;
+      const timestamp = new Date().toISOString();
 
-    const confidenceDelta =
-      answerScore +
-      hypothesisUpdate.strengthenedHypotheses.length * 0.015 +
-      hypothesisUpdate.weakenedHypotheses.length * 0.01;
+      telemetry.markModuleStart("runtime.gapUpdate");
+      const remainingInformationGaps = updateInformationGaps(
+        state.remainingInformationGaps,
+        state.currentQuestion,
+        trimmedAnswer
+      );
+      telemetry.markModuleEnd("runtime.gapUpdate");
 
-    const confidenceAfter = clampConfidence(confidenceBefore + confidenceDelta);
+      telemetry.markModuleStart("runtime.evidenceCreation");
+      if (!state.currentQuestion) {
+        throw new Error("Current question is required to register evidence.");
+      }
 
-    const remainingInformationGaps = updateInformationGaps(
-      state.remainingInformationGaps,
-      state.currentQuestion,
-      trimmedAnswer
-    );
+      const currentQuestion = state.currentQuestion;
+      const generatedEvidence = state.hypotheses.map((hypothesis) => {
+        const semantic = evidenceSemanticInterpreter.interpret(
+          {
+            answer: trimmedAnswer,
+            question: currentQuestion,
+            context: { domain: state.operationalObject.domain },
+          },
+          { hypothesisId: hypothesis.id }
+        );
 
-    const turn: InvestigationTurn = {
+        const record = confidenceEvidenceFramework.createEvidenceRecord({
+          id: createId(),
+          origin: "Investigation Flow",
+          question: currentQuestion,
+          answer: trimmedAnswer,
+          investigationStep: currentQuestion.step || "Investigar",
+          relatedHypothesisId: hypothesis.id,
+          keywords: hypothesis.keywords,
+          timestamp,
+          provenance: {
+            kind: "ContextualInterview",
+            source: currentQuestion.question,
+            capturedAt: timestamp,
+            confidence: Math.max(0.35, Math.min(0.65, state.currentConfidence)),
+            consistency: 0.55,
+            temporalCorrelation: 0.5,
+          },
+        });
+
+        return evidenceSemanticInterpreter.attachSemanticProfile(record, semantic.profile);
+      });
+      telemetry.markModuleEnd("runtime.evidenceCreation");
+
+      const relevantEvidence = generatedEvidence.filter((item) => item.relation !== "Neutral");
+      const evidenceToRegister = relevantEvidence.length > 0 ? relevantEvidence : [generatedEvidence[0]];
+      const evidenceByHypothesis = new Map<string, EvidenceItem[]>(
+        state.hypotheses.map((hypothesis) => [
+          hypothesis.id,
+          [
+            ...state.evidenceRegistry.items.filter((item) => item.relatedHypothesisId === hypothesis.id),
+            ...evidenceToRegister.filter((item) => item.relatedHypothesisId === hypothesis.id),
+          ],
+        ])
+      );
+
+      const strengthenedHypotheses: string[] = [];
+      const weakenedHypotheses: string[] = [];
+      const promotionEntries: LifecyclePromotionAuditEntry[] = [];
+
+      telemetry.markModuleStart("runtime.lifecycleGovernance");
+
+      const updatedHypotheses = state.hypotheses.map((hypothesis) => {
+      const missingEvidence = confidenceEvidenceFramework.computeMissingEvidence(
+        remainingInformationGaps,
+        hypothesis
+      );
+
+      const evaluation = confidenceEvidenceFramework.evaluate({
+        hypothesis,
+        evidence: evidenceByHypothesis.get(hypothesis.id) ?? [],
+        missingEvidence,
+        timestamp,
+      });
+
+      if (evaluation.confidence > hypothesis.confidence) {
+        strengthenedHypotheses.push(hypothesis.id);
+      }
+
+      if (evaluation.confidence < hypothesis.confidence) {
+        weakenedHypotheses.push(hypothesis.id);
+      }
+
+      const governanceDecision = lifecycleGovernor.resolve({
+        hypothesis,
+        proposedStatus: evaluation.lifecycleStatus,
+        confidence: evaluation.confidence,
+        relatedEvidence: evidenceByHypothesis.get(hypothesis.id) ?? [],
+        missingEvidence,
+      });
+
+      const governedLifecycleStatus = governanceDecision.lifecycleStatus;
+      const status =
+        governedLifecycleStatus === "Rejected"
+          ? "Discarded"
+          : governedLifecycleStatus === "Confirmed" && missingEvidence.length === 0
+          ? "Confirmed"
+          : "Active";
+
+      if (governedLifecycleStatus !== hypothesis.lifecycleStatus && governanceDecision.promoterEvidence) {
+        promotionEntries.push(
+          createLifecyclePromotionAuditEntry({
+            id: createId(),
+            governanceEvaluationId: governanceDecision.governanceEvaluationId,
+            hypothesis,
+            from: hypothesis.lifecycleStatus,
+            to: governedLifecycleStatus,
+            ruleApplied: governanceDecision.ruleApplied,
+            predominantCategory:
+              governanceDecision.predominantCategory ?? governanceDecision.promoterEvidence.evidenceCategory,
+            justification: governanceDecision.justification,
+            promoterEvidence: governanceDecision.promoterEvidence,
+            createdAt: timestamp,
+          })
+        );
+      }
+
+      return {
+        ...hypothesis,
+        confidence: evaluation.confidence,
+        lifecycleStatus: governedLifecycleStatus,
+        supportingEvidence: evaluation.supportingEvidenceIds,
+        contradictingEvidence: evaluation.contradictingEvidenceIds,
+        missingEvidence,
+        nextRecommendedInvestigation: evaluation.nextRecommendedInvestigation,
+        reasoningSummary: `${evaluation.reasoningSummary} Governança: ${governanceDecision.justification}`,
+        confidenceHistory: [...hypothesis.confidenceHistory, evaluation.confidenceEntry],
+        status,
+      };
+      });
+      telemetry.markModuleEnd("runtime.lifecycleGovernance");
+
+      const competitiveHypotheses = competitiveHypothesisManager.updateCompetition(
+        updatedHypotheses as HypothesisState[],
+        evidenceToRegister,
+        { domain: state.operationalObject.domain }
+      );
+
+      const confidenceAfter = clampConfidence(
+        updatedHypotheses.reduce((max, hypothesis) => Math.max(max, hypothesis.confidence), 0)
+      );
+
+      const turn: InvestigationTurn = {
       id: createId(),
       questionId: state.currentQuestion.id,
       questionAsked: state.currentQuestion.question,
@@ -531,37 +819,75 @@ export default class AdaptiveInvestigationEngine {
       whyQuestionWasAsked: state.currentQuestion.whyAsked,
       uncertaintyReduced: state.currentQuestion.uncertaintyTarget,
       objective: state.currentQuestion.objective,
-      strengthenedHypotheses: hypothesisUpdate.strengthenedHypotheses,
-      weakenedHypotheses: hypothesisUpdate.weakenedHypotheses,
+      strengthenedHypotheses: unique(strengthenedHypotheses),
+      weakenedHypotheses: unique(weakenedHypotheses),
       confidenceBefore,
       confidenceAfter,
       remainingInformationGaps,
-      createdAt: new Date().toISOString(),
-    };
+      createdAt: timestamp,
+      };
 
-    const nextState: AdaptiveInvestigationState = {
+      const nextState: AdaptiveInvestigationState = {
       ...state,
-      updatedAt: new Date().toISOString(),
+      updatedAt: timestamp,
       currentConfidence: confidenceAfter,
-      hypotheses: hypothesisUpdate.hypotheses,
+      hypotheses: competitiveHypotheses,
       evidenceRegistry: {
-        items: [...state.evidenceRegistry.items, evidenceItem],
+        items: [...state.evidenceRegistry.items, ...evidenceToRegister],
       },
       hypothesisRegistry: {
-        items: hypothesisUpdate.hypotheses,
+        items: competitiveHypotheses,
       },
       history: [...state.history, turn],
+      lifecycleAuditTrail: [...state.lifecycleAuditTrail, ...promotionEntries],
       askedQuestionIds: unique([...state.askedQuestionIds, state.currentQuestion.id]),
       knownInformation: unique([...state.knownInformation, trimmedAnswer]),
       remainingInformationGaps,
-    };
+      investigationOutput: state.investigationOutput,
+      runtimeTelemetry: state.runtimeTelemetry,
+      };
 
-    const nextQuestion = chooseNextQuestion(nextState);
+      telemetry.markModuleStart("runtime.questionSelection");
+      const nextQuestion = chooseNextQuestion(nextState);
+      telemetry.markModuleEnd("runtime.questionSelection");
 
-    return {
+      const withQuestionState: AdaptiveInvestigationState = {
       ...nextState,
-      currentQuestion: nextQuestion,
+      currentQuestion: nextQuestion ? {
+        ...nextQuestion,
+        questionJustification: nextQuestion.questionJustification ?? buildQuestionJustification(nextState, nextQuestion.question, nextQuestion.uncertaintyTarget),
+      } : null,
       status: nextQuestion ? "ongoing" : "ready-for-synthesis",
-    };
+      };
+
+      telemetry.markModuleStart("runtime.decisionIntegrity");
+      const investigationOutput = buildInvestigationOutput(withQuestionState);
+      telemetry.markModuleEnd("runtime.decisionIntegrity");
+
+      telemetry.markModuleEnd("runtime.registerAnswer");
+      telemetry.addEvent(
+        "AnswerRegistrationCompleted",
+        `Registro concluído com ${promotionEntries.length} transições auditadas de lifecycle.`
+      );
+      telemetry.markSuccess();
+
+      const executionTrace = telemetry.finalize();
+
+      return {
+        ...withQuestionState,
+        investigationOutput,
+        runtimeTelemetry: [...withQuestionState.runtimeTelemetry, executionTrace].slice(-40),
+      };
+    } catch (error) {
+      telemetry.addError("runtime.registerAnswer", error instanceof Error ? error.message : "Unknown registerAnswer error");
+      telemetry.markModuleEnd("runtime.registerAnswer");
+      telemetry.addEvent("AnswerRegistrationFailed", "Registro de resposta investigativa falhou.");
+      const errorTrace = telemetry.finalize();
+
+      return {
+        ...state,
+        runtimeTelemetry: [...state.runtimeTelemetry, errorTrace].slice(-40),
+      };
+    }
   }
 }

@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
 import AdaptiveInvestigationEngine from '@/runtime/engines/AdaptiveInvestigationEngine';
-import { readInvestigationState, writeInvestigationState } from '@/lib/investigationStateStorage';
+import {
+  createRuntimeRequestId,
+  readInvestigationState,
+  readOrCreateRuntimeSessionId,
+  writeInvestigationState,
+} from '@/lib/investigationStateStorage';
 import type { AdaptiveInvestigationState } from '@/runtime/artifacts/AdaptiveInvestigationState';
 import {
   reconstructOperationalObjectFromText,
@@ -27,6 +32,8 @@ export default function ContextBuildingPage() {
   const [stateSnapshot, setStateSnapshot] = useState<AdaptiveInvestigationState | null>(null);
 
   useEffect(() => {
+    const sessionId = readOrCreateRuntimeSessionId();
+    const requestId = createRuntimeRequestId();
     const existingState = readInvestigationState();
 
     if (existingState?.currentQuestion?.question) {
@@ -47,7 +54,11 @@ export default function ContextBuildingPage() {
       const validation = tryParseOperationalObject(parsed);
 
       if (validation.success) {
-        const initializedState = adaptiveInvestigationEngine.initialize(validation.data);
+        const initializedState = adaptiveInvestigationEngine.initialize(validation.data, {
+          sessionId,
+          requestId,
+          retryCount: 0,
+        });
         writeInvestigationState(initializedState);
         setStateSnapshot(initializedState);
         setFirstQuestion(initializedState.currentQuestion?.question ?? validation.data.requiredInformation[0]);
@@ -57,7 +68,11 @@ export default function ContextBuildingPage() {
       if (typeof parsed.problemStatement === 'string' && parsed.problemStatement.trim().length > 0) {
         const recovered = reconstructOperationalObjectFromText(raw, parsed.problemStatement);
         sessionStorage.setItem(OPERATIONAL_OBJECT_STORAGE_KEY, JSON.stringify(recovered));
-        const recoveredState = adaptiveInvestigationEngine.initialize(recovered);
+        const recoveredState = adaptiveInvestigationEngine.initialize(recovered, {
+          sessionId,
+          requestId,
+          retryCount: 1,
+        });
         writeInvestigationState(recoveredState);
         setStateSnapshot(recoveredState);
         setFirstQuestion(recoveredState.currentQuestion?.question ?? recovered.requiredInformation[0]);
@@ -65,7 +80,16 @@ export default function ContextBuildingPage() {
       }
 
       setErrorMessage('Não foi possível identificar a primeira pergunta contextual no resultado da interpretação.');
-    } catch {
+    } catch (error) {
+      console.error(
+        '[ATLAZ][Runtime][ContextBootstrapFailure]',
+        JSON.stringify({
+          timestamp: new Date().toISOString(),
+          sessionId,
+          requestId,
+          errorMessage: error instanceof Error ? error.message : 'Unknown bootstrap error',
+        })
+      );
       setErrorMessage('Não foi possível carregar a interpretação inicial.');
     }
   }, []);
@@ -85,7 +109,11 @@ export default function ContextBuildingPage() {
       return;
     }
 
-    const updatedState = adaptiveInvestigationEngine.registerAnswer(stateSnapshot, answer.trim());
+    const updatedState = adaptiveInvestigationEngine.registerAnswer(stateSnapshot, answer.trim(), {
+      sessionId: readOrCreateRuntimeSessionId(),
+      requestId: createRuntimeRequestId(),
+      retryCount: 0,
+    });
     writeInvestigationState(updatedState);
     setStateSnapshot(updatedState);
     setAnswer('');
@@ -114,6 +142,18 @@ export default function ContextBuildingPage() {
             <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>
           ) : (
             <div className="space-y-5">
+              {stateSnapshot ? (
+                <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Próxima investigação recomendada</p>
+                  <p className="mt-3 text-base leading-8 text-slate-900">
+                    {stateSnapshot.investigationOutput.recommendedInvestigation}
+                  </p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Estado decisório: {stateSnapshot.investigationOutput.decision.status}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
                 <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Primeira pergunta contextual</p>
                 <p className="mt-3 text-lg leading-8 text-slate-900">{firstQuestion}</p>

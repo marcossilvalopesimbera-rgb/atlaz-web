@@ -6,7 +6,7 @@ import { Button } from '@components/ui/Button';
 import { CognitiveProgress, COGNITIVE_ENGINE_CONFIG } from '@components/ui/cognitive';
 import AdaptiveInvestigationEngine from '@/runtime/engines/AdaptiveInvestigationEngine';
 import { tryParseOperationalObject } from '@/runtime/schemas/OperationalObjectRecovery';
-import { writeInvestigationState } from '@/lib/investigationStateStorage';
+import { createRuntimeRequestId, readOrCreateRuntimeSessionId, writeInvestigationState } from '@/lib/investigationStateStorage';
 
 const OPERATIONAL_OBJECT_STORAGE_KEY = 'atlaz.runtime.operationalObject';
 const MAX_TEXTAREA_HEIGHT = 420;
@@ -46,11 +46,16 @@ export default function NewInvestigationPage() {
     setActiveStep(0);
     setIsLoading(true);
 
+    const sessionId = readOrCreateRuntimeSessionId();
+    const requestId = createRuntimeRequestId();
+
     try {
       const response = await fetch('/api/runtime/problem-interpreter', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Session-ID': sessionId,
+          'X-Request-ID': requestId,
         },
         body: JSON.stringify({ problem }),
       });
@@ -74,7 +79,11 @@ export default function NewInvestigationPage() {
       }
 
       sessionStorage.setItem(OPERATIONAL_OBJECT_STORAGE_KEY, JSON.stringify(parsedResult.data));
-      const initialState = adaptiveInvestigationEngine.initialize(parsedResult.data);
+      const initialState = adaptiveInvestigationEngine.initialize(parsedResult.data, {
+        sessionId,
+        requestId,
+        retryCount: 0,
+      });
       writeInvestigationState(initialState);
       setActiveStep(3);
       setIsComplete(true);

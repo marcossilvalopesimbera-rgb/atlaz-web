@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
 import type { InvestigationQuestion } from '@/runtime/artifacts/AdaptiveInvestigationState';
 import AdaptiveInvestigationEngine from '@/runtime/engines/AdaptiveInvestigationEngine';
-import { readInvestigationState, writeInvestigationState } from '@/lib/investigationStateStorage';
+import {
+  createRuntimeRequestId,
+  readInvestigationState,
+  readOrCreateRuntimeSessionId,
+  writeInvestigationState,
+} from '@/lib/investigationStateStorage';
 
 const stages = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
 
@@ -59,14 +64,17 @@ export default function WorkspacePage() {
   );
 
   const summaryItems = useMemo(() => {
-    const base = ['Problema identificado', 'Objetivo definido', 'Contexto registrado'];
-
     if (!stateSnapshot) {
-      return base;
+      return [];
     }
 
-    const dynamic = stateSnapshot.history.map((entry) => `${entry.objective}: ${entry.uncertaintyReduced}`);
-    return [...base, ...dynamic.slice(-4)];
+    return [
+      `Status decisório: ${stateSnapshot.investigationOutput.decision.status}`,
+      `Recomendação atual: ${stateSnapshot.investigationOutput.recommendedInvestigation}`,
+      ...stateSnapshot.investigationOutput.hypotheses
+        .slice(0, 3)
+        .map((hypothesis) => `${hypothesis.lifecycleStatus}: ${hypothesis.description}`),
+    ];
   }, [stateSnapshot]);
 
   const updatedProgress = useMemo(
@@ -103,7 +111,11 @@ export default function WorkspacePage() {
       return;
     }
 
-    const updatedState = adaptiveInvestigationEngine.registerAnswer(stateSnapshot, currentAnswer);
+    const updatedState = adaptiveInvestigationEngine.registerAnswer(stateSnapshot, currentAnswer, {
+      sessionId: readOrCreateRuntimeSessionId(),
+      requestId: createRuntimeRequestId(),
+      retryCount: 0,
+    });
     writeInvestigationState(updatedState);
     setStateSnapshot(updatedState);
     setCurrentAnswer('');
@@ -258,8 +270,22 @@ export default function WorkspacePage() {
 
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6 text-sm leading-7 text-slate-600">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Método</p>
-                <p className="mt-2">A ATLAZ conduz a investigação, conecta evidências e decide quais informações ainda faltam.</p>
+                <p className="mt-2">
+                  {stateSnapshot?.investigationOutput.decision.rationale ||
+                    'A ATLAZ conduz a investigação, conecta evidências e decide quais informações ainda faltam.'}
+                </p>
               </div>
+
+              {stateSnapshot?.investigationOutput.missingEvidence.length ? (
+                <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-6 text-sm leading-7 text-amber-800">
+                  <p className="text-xs uppercase tracking-[0.24em] text-amber-700">Evidência faltante</p>
+                  <ul className="mt-2 space-y-1">
+                    {stateSnapshot.investigationOutput.missingEvidence.slice(0, 3).map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </aside>
           </div>
         </div>

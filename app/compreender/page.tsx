@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
 import { readInvestigationState } from '@/lib/investigationStateStorage';
-import type { EvidenceItem, HypothesisState } from '@/runtime/artifacts/AdaptiveInvestigationState';
+import type { AdaptiveInvestigationState } from '@/runtime/artifacts/AdaptiveInvestigationState';
 
 const progressSteps = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
 
@@ -22,36 +22,10 @@ const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
 export default function CompreenderPage() {
   const router = useRouter();
-  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
-  const [hypotheses, setHypotheses] = useState<HypothesisState[]>([]);
-  const [overallConfidence, setOverallConfidence] = useState<'Alta' | 'Média' | 'Baixa'>('Alta');
-  const [mainConclusion, setMainConclusion] = useState(
-    'A clareza está na sequência entre planejamento e controles.'
-  );
+  const [stateSnapshot, setStateSnapshot] = useState<AdaptiveInvestigationState | null>(null);
 
   useEffect(() => {
-    const state = readInvestigationState();
-
-    if (!state) {
-      return;
-    }
-
-    if (state.evidenceRegistry.items.length > 0) {
-      setEvidence(state.evidenceRegistry.items.slice(-8).reverse());
-    }
-
-    const rankedHypotheses = state.hypothesisRegistry.items
-      .slice()
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 6);
-
-    if (rankedHypotheses.length > 0) {
-      setHypotheses(rankedHypotheses);
-      const bestConfirmed = rankedHypotheses.find((item) => item.status === 'Confirmed');
-      setMainConclusion((bestConfirmed ?? rankedHypotheses[0]).description);
-    }
-
-    setOverallConfidence(confidenceLabel(state.currentConfidence));
+    setStateSnapshot(readInvestigationState());
   }, []);
 
   const progressItems = useMemo(
@@ -64,6 +38,14 @@ export default function CompreenderPage() {
       })),
     []
   );
+
+  const output = stateSnapshot?.investigationOutput;
+  const rankedHypotheses = output?.hypotheses ?? [];
+  const mainHypothesis = rankedHypotheses[0];
+  const supportingEvidence = output?.evidence.supporting ?? [];
+  const contradictingEvidence = output?.evidence.contradicting ?? [];
+  const missingEvidence = output?.missingEvidence ?? [];
+  const confidence = output?.confidence.global ?? stateSnapshot?.currentConfidence ?? 0;
 
   return (
     <main className="bg-white text-slate-950">
@@ -93,40 +75,51 @@ export default function CompreenderPage() {
           <div className="rounded-[2rem] border-2 border-slate-300 bg-white p-10 shadow-md shadow-slate-950/10">
             <p className="text-xs uppercase tracking-[0.32em] text-slate-500">COMPREENDER</p>
             <h1 className="mt-4 max-w-[780px] text-[2.9rem] leading-[0.96] tracking-tight text-slate-950 sm:text-[3.5rem]">
-              O que está causando isto?
+              Entendimento explicável da investigação
             </h1>
             <p className="mt-5 max-w-[760px] text-[18px] leading-8 text-slate-600">
-              A ATLAZ conectou sinais e hipóteses para revelar a causa mais provável, por que ela importa agora e como isso orienta a próxima decisão.
+              Esta etapa apresenta exatamente o que o runtime cognitivo concluiu, com rastreabilidade de evidências,
+              nível de confiança e lacunas ainda abertas.
             </p>
           </div>
 
           <div className="grid gap-10 lg:grid-cols-[64%_36%]">
             <div className="space-y-8">
               <div className="rounded-[2rem] border-2 border-slate-300 bg-white p-10 shadow-md shadow-slate-950/10">
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Conclusão principal</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Hipótese de maior confiança</p>
                 <h2 className="mt-3 text-3xl font-semibold leading-tight text-slate-950">
-                  {mainConclusion}
+                  {mainHypothesis?.description || 'Nenhuma hipótese consolidada ainda.'}
                 </h2>
-                <p className="mt-4 max-w-[680px] text-sm leading-7 text-slate-600">
-                  As evidências mostram que a maior alavanca está em reforçar o fluxo entre o planejamento e a execução para reduzir ruídos e evitar que pequenos desvios se tornem crises.
+                <p className="mt-4 max-w-[760px] text-sm leading-7 text-slate-600">
+                  {mainHypothesis?.reasoningSummary ||
+                    'A investigação ainda está acumulando sinais para elevar a hipótese além de possibilidade.'}
                 </p>
               </div>
 
               <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Contexto</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Resumo do que já sabemos</h3>
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Hipóteses</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Lifecycle e confiança</h3>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Síntese inteligente
+                    Runtime Output
                   </span>
                 </div>
-                <p className="mt-4 text-sm leading-7 text-slate-600">
-                  A etapa de compreensão usa exclusivamente as evidências registradas no fluxo investigativo e suas hipóteses explícitas relacionadas.
-                </p>
-                <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
-                  Cada hipótese abaixo mostra o que está sustentando a conclusão, o que a contradiz e qual o status atual da investigação causal.
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {rankedHypotheses.map((item) => (
+                    <div key={item.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-base font-semibold text-slate-950">{item.description}</p>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-700">
+                          {item.lifecycleStatus}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-slate-600">Confiança: {toPercent(item.confidence)}</p>
+                      <p className="text-sm leading-7 text-slate-600">{item.reasoningSummary}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -134,130 +127,94 @@ export default function CompreenderPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Evidências</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Evidence Registry</h3>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Suporte e contradição</h3>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Estruturado
-                  </span>
                 </div>
-                <div className="mt-4 grid gap-3">
-                  {evidence.map((item) => (
-                    <div key={item.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-base font-semibold text-slate-950">{item.title}</p>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
-                          {toPercent(item.confidence)}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-7 text-slate-600">Fonte: {item.source}</p>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Etapa: {item.investigationStep}</p>
+
+                <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Suporte</p>
+                    <div className="mt-2 space-y-3">
+                      {supportingEvidence.map((item) => (
+                        <div key={item.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                          <p className="text-base font-semibold text-slate-950">{item.title}</p>
+                          <p className="mt-2 text-sm leading-7 text-slate-600">{item.answer}</p>
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                            {item.evidenceType} · {item.weightLevel} · {toPercent(item.confidence)}
+                          </p>
+                        </div>
+                      ))}
+                      {supportingEvidence.length === 0 ? (
+                        <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+                          Nenhuma evidência de suporte consolidada.
+                        </p>
+                      ) : null}
                     </div>
-                  ))}
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Contradição</p>
+                    <div className="mt-2 space-y-3">
+                      {contradictingEvidence.map((item) => (
+                        <div key={item.id} className="rounded-[1.25rem] border border-rose-200 bg-rose-50 p-4">
+                          <p className="text-base font-semibold text-slate-950">{item.title}</p>
+                          <p className="mt-2 text-sm leading-7 text-slate-700">{item.answer}</p>
+                          <p className="text-xs uppercase tracking-[0.24em] text-rose-700">
+                            {item.evidenceType} · Penaliza confiança
+                          </p>
+                        </div>
+                      ))}
+                      {contradictingEvidence.length === 0 ? (
+                        <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+                          Nenhuma evidência contraditória registrada.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Insights</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Hipóteses principais</h3>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Investigativas
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  {hypotheses.map((item) => (
-                    <div key={item.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-base font-semibold text-slate-950">{item.description}</p>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-700">
-                          {item.status}
-                        </span>
-                      </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-600">Confiança: {toPercent(item.confidence)}</p>
-                      <p className="text-sm leading-7 text-slate-600">Evidências de suporte: {item.supportingEvidence.length}</p>
-                      <p className="text-sm leading-7 text-slate-600">Evidências contraditórias: {item.contradictingEvidence.length}</p>
-                    </div>
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Evidência faltante</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Lacunas para próxima iteração</h3>
+                <ul className="mt-4 space-y-2 text-sm leading-7 text-slate-600">
+                  {missingEvidence.map((item) => (
+                    <li key={item}>• {item}</li>
                   ))}
-                </div>
-              </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Relacionamentos</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">Como as hipóteses se conectam</h3>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Contexto inteligente
-                  </span>
-                </div>
-
-                <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Variabilidade do processo</p>
-                      <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Evidências com mesmo padrão aumentam confiança em hipóteses confirmadas.
-                      </p>
-                    </div>
-                    <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Lacunas de informação</p>
-                      <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Hipóteses ativas ainda dependem de evidência complementar para confirmação.
-                      </p>
-                    </div>
-                    <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Desvio de controle</p>
-                      <p className="mt-3 text-sm leading-7 text-slate-600">
-                        Hipóteses descartadas são removidas da base de decisão para evitar ruído.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  {missingEvidence.length === 0 ? (
+                    <li>Nenhuma lacuna crítica aberta no momento.</li>
+                  ) : null}
+                </ul>
+                <p className="mt-4 text-sm leading-7 text-slate-600">
+                  Próxima investigação recomendada: {output?.recommendedInvestigation || 'Sem recomendação no momento.'}
+                </p>
               </div>
 
               <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
                 <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Ação recomendada</p>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Transformar entendimento em recomendações</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  Estamos prontos para traduzir esse entendimento em recomendações de decisão e mostrar como agir com clareza.
-                </p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Avançar para decisão operacional</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{output?.decision.rationale || 'A decisão será aberta na próxima etapa.'}</p>
                 <div className="mt-6">
                   <Button type="button" onClick={() => router.push('/decidir')} className="w-full sm:w-auto">
                     Avançar para decisões
                   </Button>
                 </div>
               </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5">
-                <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Fechamento da etapa</p>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-950">Compreensão consolidada</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  A leitura causal foi estruturada com base em sinais e hipóteses conectadas. A próxima etapa consolida decisões rastreáveis.
-                </p>
-              </div>
             </div>
 
             <aside className="space-y-6">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Como a ATLAZ interpretou</p>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  A inteligência agrupou sinais de processo, controle e comunicação para apresentar um modelo lógico da situação, em vez de apenas listar problemas.
-                </p>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Confiança global</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{confidenceLabel(confidence)}</p>
+                <p className="mt-2 text-sm text-slate-600">{toPercent(confidence)} com base no modelo CEF.</p>
               </div>
 
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Confiança</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{overallConfidence}</p>
-                <p className="mt-2 text-sm text-slate-600">Baseada em convergência de sinais e coerência causal.</p>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-6 text-sm leading-7 text-slate-600">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Última atualização</p>
-                <p className="mt-2">Síntese causal atualizada com os sinais mais recentes registrados na investigação.</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Status decisório</p>
+                <p className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-900">
+                  {output?.decision.status || 'insufficient-evidence'}
+                </p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">{output?.decision.rationale || 'Sem racional consolidado.'}</p>
               </div>
             </aside>
           </div>
