@@ -54,6 +54,32 @@
 - Regra técnica estabelecida: nenhuma evolução futura de runtime sem ADR prévio aprovado.
 - ADR de referência: `ADR-0007`.
 
+## [v1.2.0] - 2026-08-12
+
+## Added
+- Camada compartilhada de experiência CIX em `lib/cixExperience.ts`.
+- Frame executivo de investigação em `components/ui/cognitive/InvestigationPageFrame.tsx`.
+- Disclosure técnico opcional mantido em `components/ui/cognitive/TechnicalAnalysisPanel.tsx`.
+
+## Changed
+- Páginas `context`, `workspace`, `compreender`, `decidir` e `evoluir` redesenhadas para narrativa conversacional e resumo executivo.
+- Home hero e header ajustados para a nova linguagem de investigação.
+- Estilo global refinado para a nova hierarquia visual da CIX.
+
+## Removed
+- Exposição direta de internals do runtime na visão principal das páginas investigativas.
+- Blocos longos de texto e listas extensas na jornada principal.
+
+## Fixed
+- Detecção de persona passou a considerar também o texto consolidado do problema operacional.
+- Narrativa investigativa passou a seguir uma linguagem natural e orientada por especialista.
+
+## Tests
+- Alterações de UX permanecem vinculadas às validações de build, lint, type-check e teste automatizado do projeto.
+
+## Build & Quality
+- A Sprint 3 preserva o baseline arquitetural e se limita à camada de experiência.
+
 ## [v1.1.1] - 2026-08-10
 
 ## Added

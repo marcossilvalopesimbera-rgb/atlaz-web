@@ -9,8 +9,8 @@ const navItems = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4">
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1360px] items-center justify-between px-6 py-4 lg:px-8">
         <div className="space-y-1">
           <Link href="/" className="text-sm font-semibold tracking-[0.28em] text-slate-950">
             ATLAZ

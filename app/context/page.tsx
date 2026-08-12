@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
+import { InvestigationPageFrame } from '@components/ui/cognitive/InvestigationPageFrame';
 import AdaptiveInvestigationEngine from '@/runtime/engines/AdaptiveInvestigationEngine';
 import {
   createRuntimeRequestId,
@@ -15,6 +16,7 @@ import {
   reconstructOperationalObjectFromText,
   tryParseOperationalObject,
 } from '@/runtime/schemas/OperationalObjectRecovery';
+import { buildConversationLayer, detectPersona } from '@/lib/cixExperience';
 
 const OPERATIONAL_OBJECT_STORAGE_KEY = 'atlaz.runtime.operationalObject';
 const adaptiveInvestigationEngine = new AdaptiveInvestigationEngine();
@@ -126,59 +128,66 @@ export default function ContextBuildingPage() {
     router.push('/compreender');
   };
 
+  const persona = detectPersona(stateSnapshot);
+  const conversationLayer = stateSnapshot?.currentQuestion
+    ? buildConversationLayer(persona, stateSnapshot.currentQuestion, stateSnapshot)
+    : null;
+
   return (
-    <main className="bg-white text-slate-950">
-      <section className="mx-auto min-h-screen max-w-[920px] px-6 py-16 lg:px-8">
-        <div className="space-y-8 rounded-[2rem] border border-slate-200 bg-slate-50 p-8 shadow-sm shadow-slate-950/5">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Contexto operacional</h1>
-
-          <p className="max-w-[760px] text-lg leading-8 text-slate-700">
-            Compreendi uma primeira visão do problema.
-            <br />
-            Antes de levantar hipóteses, preciso compreender melhor o contexto operacional.
-          </p>
-
-          {errorMessage ? (
-            <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>
-          ) : (
-            <div className="space-y-5">
-              {stateSnapshot ? (
-                <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Próxima investigação recomendada</p>
-                  <p className="mt-3 text-base leading-8 text-slate-900">
-                    {stateSnapshot.investigationOutput.recommendedInvestigation}
-                  </p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Estado decisório: {stateSnapshot.investigationOutput.decision.status}
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Primeira pergunta contextual</p>
-                <p className="mt-3 text-lg leading-8 text-slate-900">{firstQuestion}</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white px-5 py-5">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Sua resposta</p>
-                <textarea
-                  value={answer}
-                  onChange={(event) => setAnswer(event.target.value)}
-                  placeholder={stateSnapshot?.currentQuestion?.placeholder ?? 'Descreva o contexto com detalhes objetivos.'}
-                  className="mt-3 min-h-[180px] w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-900 outline-none transition duration-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
-                />
-
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">{answer.length} caracteres registrados</p>
-                  <Button type="button" onClick={handleSubmitAnswer} disabled={!answer.trim()}>
-                    Continuar investigação
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+    <InvestigationPageFrame
+      stageLabel="Delimitar contexto"
+      title="Agora vamos fechar o contexto com precisão."
+      subtitle="Eu vou conduzir a leitura do caso, explicar o que cada resposta muda e manter o foco no que realmente reduz incerteza."
+      state={stateSnapshot}
+    >
+      {errorMessage ? (
+        <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6 text-sm leading-7 text-rose-700">
+          {errorMessage}
         </div>
-      </section>
-    </main>
+      ) : (
+        <>
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Pergunta em foco</p>
+            <h2 className="mt-3 text-2xl font-semibold leading-tight text-slate-950">
+              {firstQuestion || 'A primeira pergunta contextual ainda está sendo preparada.'}
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-600">{stateSnapshot?.currentQuestion?.whyAsked}</p>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Conversa guiada</p>
+            <div className="mt-4 space-y-3">
+              <p className="text-base font-semibold text-slate-950">{conversationLayer?.recognition ?? 'Entendi.'}</p>
+              <p className="text-sm leading-7 text-slate-600">
+                {conversationLayer?.interpretation ?? 'Sua resposta ajuda a reduzir incerteza antes de avançarmos.'}
+              </p>
+              <p className="text-sm leading-7 text-slate-600">
+                {conversationLayer?.update ?? 'A investigação está sendo atualizada em tempo real com cada resposta.'}
+              </p>
+              <p className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-900">
+                {conversationLayer?.conduction ?? `Vamos avançar com precisão: ${firstQuestion}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sua resposta</p>
+            <textarea
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              placeholder={stateSnapshot?.currentQuestion?.placeholder ?? 'Descreva o contexto com detalhes objetivos.'}
+              className="mt-3 min-h-[180px] w-full resize-none rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-900 outline-none transition duration-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+            />
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{answer.length} caracteres registrados</p>
+              <Button type="button" onClick={handleSubmitAnswer} disabled={!answer.trim()}>
+                Continuar investigação
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </InvestigationPageFrame>
   );
 }

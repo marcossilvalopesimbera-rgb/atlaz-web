@@ -94,6 +94,45 @@ Heurísticas legadas de renderização decisória foram removidas do fluxo princ
 A partir desta versão, toda evolução do Cognitive Runtime requer ADR aprovado antes de implementação.
 Referência: `ADR-0007`.
 
+## Sprint 3 — Cognitive Investigation Experience (CIX)
+
+Esta sprint não altera o runtime baseline. O foco passou a ser exclusivamente a camada de experiência, com a investigação apresentada como condução especialista em vez de fluxo sistêmico.
+
+### Entregas de experiência
+
+1. Domain Expert Persona Engine
+- Identificação automática de persona por domínio operacional.
+- Ajuste de linguagem, vocabulário, profundidade técnica e estilo de condução.
+
+2. Cognitive Conversation Layer
+- Estrutura conversacional com reconhecimento, interpretação, atualização e condução.
+- Redução da sensação de formulário no fluxo investigativo.
+
+3. Progressive Disclosure
+- Estruturas internas de lifecycle, confidence, competition, governance e classification mantidas fora da visão principal.
+- Painel técnico mantido apenas sob solicitação explícita.
+
+4. Executive Investigation Summary
+- Resumo executivo com situação atual, descobertas principais, hipótese dominante e próximo passo.
+- Dieta de informação aplicada com limite de hipóteses e evidências visíveis.
+
+5. Investigation Timeline
+- Linha do tempo resumida com evolução do raciocínio investigativo.
+- Estágio atual evidenciado sem expor complexidade interna.
+
+6. UX Redesign
+- Redução de texto e reorganização visual em cartões, hierarquia curta e leitura rápida.
+- Linguagem mais serena, natural e orientada por especialista.
+
+### Compatibilidade
+- Runtime inalterado.
+- Governança, decision engine, confidence e evidence frameworks preservados.
+- Explainability mantida em camadas.
+
+### Qualidade e validação
+- Build de produção deve permanecer válido após a camada de experiência ser aplicada.
+- Testes automatizados continuam sendo o critério de aceitação final para o runtime.
+
 ## Sprint 1 — Runtime Stabilization (AR-001 / RSP-001)
 
 Esta sprint executa alinhamento de implementação com baseline arquitetural aprovado, sem alterar arquitetura cognitiva, ECF ou CEF.
