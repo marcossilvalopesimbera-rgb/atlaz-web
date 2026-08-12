@@ -50,59 +50,32 @@ export default function DecidirPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Hipóteses em foco</p>
-          <div className="mt-4 space-y-3">
-            {hypotheses.slice(0, 3).map((hypothesis) => (
-              <div key={hypothesis.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-950">{hypothesis.description}</p>
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-                    {hypothesis.lifecycleStatus}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{hypothesis.reasoningSummary}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Evidência principal</p>
-          <div className="mt-4 space-y-3">
-            {supportEvidence.map((item) => (
-              <div key={item.id} className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-950">{item.question}</p>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{item.answer}</p>
-              </div>
-            ))}
-            {supportEvidence.length === 0 ? <p className="text-sm leading-7 text-slate-600">Ainda não há evidência suficiente para sustentar decisão.</p> : null}
-          </div>
-        </div>
-      </div>
-
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
-        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Pontos de atenção</p>
-        <div className="mt-4 space-y-3">
-          {contradictingEvidence.map((item) => (
-            <div key={item.id} className="rounded-[1.25rem] border border-rose-200 bg-rose-50 p-4">
-              <p className="text-sm font-semibold text-slate-950">{item.question}</p>
-              <p className="mt-2 text-sm leading-7 text-slate-700">{item.answer}</p>
-            </div>
-          ))}
-          {contradictingEvidence.length === 0 ? <p className="text-sm leading-7 text-slate-600">Nenhuma contradição ativa na base atual.</p> : null}
-        </div>
-
+        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Nossa recomendação</p>
+        <p className="mt-3 text-sm leading-7 text-slate-600">Esta é a próxima ação porque reduz a principal incerteza antes de comprometer uma decisão operacional.</p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Button type="button" onClick={() => router.push('/evoluir')} className="w-full sm:w-auto">
             Construir plano de ação
           </Button>
           <Button variant="secondary" type="button" onClick={() => router.push('/workspace')} className="w-full sm:w-auto">
-            Continuar investigando
+            Coletar novas evidências
           </Button>
         </div>
       </div>
+
+      <details className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">Ver análise técnica</summary>
+        <div className="mt-5 grid gap-6 lg:grid-cols-2">
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Linhas em observação</p>
+            {hypotheses.slice(0, 3).map((hypothesis) => <p key={hypothesis.id} className="text-sm leading-7 text-slate-700">{hypothesis.description}</p>)}
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Evidências e pontos de atenção</p>
+            {[...supportEvidence, ...contradictingEvidence].map((item) => <p key={item.id} className="text-sm leading-7 text-slate-700">{item.question}: {item.answer}</p>)}
+          </div>
+        </div>
+      </details>
     </InvestigationPageFrame>
   );
 }

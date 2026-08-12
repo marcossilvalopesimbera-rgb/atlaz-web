@@ -182,7 +182,7 @@ export default function ContextBuildingPage() {
             <div className="mt-4 flex items-center justify-between gap-3">
               <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{answer.length} caracteres registrados</p>
               <Button type="button" onClick={handleSubmitAnswer} disabled={!answer.trim()}>
-                Continuar investigação
+                Registrar resposta e prosseguir
               </Button>
             </div>
           </div>

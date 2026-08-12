@@ -21,8 +21,6 @@ type InvestigationPageFrameProps = {
 
 const cardClassName = 'rounded-[1.75rem] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)] backdrop-blur';
 
-const listClassName = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4';
-
 export function InvestigationPageFrame({ stageLabel, title, subtitle, state, children }: InvestigationPageFrameProps) {
   const persona = detectPersona(state);
   const summary = state ? buildExecutiveSummary(state) : null;
@@ -60,119 +58,78 @@ export function InvestigationPageFrame({ stageLabel, title, subtitle, state, chi
           </div>
 
           {summary ? (
-            <div className="space-y-4">
-              <div className={listClassName}>
-                <div className={cardClassName}>
+            <section className={cardClassName} aria-label="Resumo executivo da investigação">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Situação atual</p>
                   <p className="mt-3 text-lg font-semibold text-slate-950">{summary.currentStatus}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Ainda não existe base suficiente para concluir quando o estado permanece em investigação.
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">O que já descobrimos</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-700">
+                    {summary.discoveries.slice(0, 2).join(' · ') || 'Estamos reunindo o contexto essencial para orientar a investigação.'}
                   </p>
                 </div>
-
-                <div className={cardClassName}>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">O que descobrimos</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {summary.discoveries.slice(0, 3).map((item) => (
-                      <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        {item}
-                      </span>
-                    ))}
-                    {summary.discoveries.length === 0 ? (
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-                        Ainda coletando contexto
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className={cardClassName}>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Hipótese principal</p>
-                  <div className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] ${toneClassByKanban[summary.leadHypothesis.kanban.tone]}`}>
-                    <span>{summary.leadHypothesis.kanban.icon}</span>
-                    <span>{summary.leadHypothesis.kanban.label}</span>
-                  </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Principal linha de investigação</p>
                   <p className="mt-3 text-lg font-semibold text-slate-950">{summary.leadHypothesis.description}</p>
                   <p className="mt-2 text-sm leading-7 text-slate-600">{summary.leadHypothesis.rationale}</p>
                 </div>
-
-                <div className={cardClassName}>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Próximo passo</p>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Próxima ação recomendada</p>
                   <p className="mt-3 text-lg font-semibold text-slate-950">{summary.nextAction}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    A recomendação abaixo mantém a investigação focada no menor conjunto de sinais úteis.
-                  </p>
                 </div>
               </div>
-
-              {summary.alternatives.length ? (
-                <div className={`${cardClassName} flex flex-wrap items-center justify-between gap-4`}>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Hipóteses alternativas</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">Até duas alternativas permanecem em observação.</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {summary.alternatives.slice(0, 2).map((item) => (
-                      <span key={item.description} className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${toneClassByKanban[item.kanban.tone]}`}>
-                        <span>{item.kanban.icon}</span>
-                        <span>{item.description}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {summary.topEvidence.length ? (
-                <div className={`${cardClassName} flex flex-wrap items-center gap-2`}>
-                  <p className="mr-2 text-xs uppercase tracking-[0.24em] text-slate-500">Evidências principais</p>
-                  {summary.topEvidence.slice(0, 3).map((item) => (
-                    <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            </section>
           ) : null}
 
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.86fr)]">
-            <div className="space-y-6">{children}</div>
+          <div className="space-y-6">{children}</div>
 
-            <aside className="space-y-6">
-              <div className={cardClassName}>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Narrativa investigativa</p>
+          <details className={`${cardClassName} group`}>
+            <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">Mais detalhes</summary>
+            <div className="mt-5 grid gap-6 xl:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Narrativa da investigação</p>
                 <p className="mt-3 text-sm leading-7 text-slate-700">{narrative}</p>
               </div>
-
+              {summary?.alternatives.length || summary?.topEvidence.length ? (
+                <div className="space-y-4">
+                  {summary?.alternatives.length ? (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Linhas em observação</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {summary.alternatives.slice(0, 2).map((item) => (
+                          <span key={item.description} className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${toneClassByKanban[item.kanban.tone]}`}>
+                            <span>{item.kanban.label}</span>
+                            <span>{item.description}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {summary?.topEvidence.length ? (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Evidências relevantes</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-700">{summary.topEvidence.slice(0, 3).join(' · ')}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {timeline.length ? (
-                <div className={cardClassName}>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Linha do tempo</p>
-                  <ol className="mt-4 space-y-3">
+                <div className="xl:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Etapas da investigação</p>
+                  <ol className="mt-3 flex flex-wrap gap-2">
                     {timeline.map((item) => (
-                      <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <span
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${
-                            item.status === 'done'
-                              ? 'bg-slate-950 text-white'
-                              : item.status === 'current'
-                              ? 'bg-[#5B5CEB] text-white'
-                              : 'bg-slate-200 text-slate-500'
-                          }`}
-                        >
-                          {item.status === 'done' ? '✓' : item.status === 'current' ? '●' : '○'}
-                        </span>
-                        <span className={`text-sm font-medium ${item.status === 'current' ? 'text-slate-950' : 'text-slate-600'}`}>
-                          {item.label}
-                        </span>
+                      <li key={item.id} className={`rounded-full border px-3 py-2 text-sm ${item.status === 'current' ? 'border-[#5B5CEB] bg-[#5B5CEB] text-white' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                        {item.label}
                       </li>
                     ))}
                   </ol>
                 </div>
               ) : null}
-
               {state ? <TechnicalAnalysisPanel state={state} /> : null}
-            </aside>
-          </div>
+            </div>
+          </details>
         </div>
       </section>
     </main>

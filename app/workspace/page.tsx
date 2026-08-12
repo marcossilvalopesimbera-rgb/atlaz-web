@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@components/ui/Button';
 import { InvestigationPageFrame } from '@components/ui/cognitive/InvestigationPageFrame';
@@ -12,6 +12,7 @@ import {
   readOrCreateRuntimeSessionId,
   writeInvestigationState,
 } from '@/lib/investigationStateStorage';
+import { buildConversationLayer, detectPersona } from '@/lib/cixExperience';
 
 const stages = ['Definir', 'Investigar', 'Compreender', 'Decidir', 'Evoluir'];
 
@@ -34,6 +35,8 @@ export default function WorkspacePage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [stateSnapshot, setStateSnapshot] = useState(readInvestigationState());
+  const [answerRecorded, setAnswerRecorded] = useState(false);
+  const responseInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const loadedState = readInvestigationState();
@@ -50,6 +53,18 @@ export default function WorkspacePage() {
 
   const activeBlock = stateSnapshot?.currentQuestion ?? synthesisBlock;
   const isLastStep = !stateSnapshot?.currentQuestion;
+  const conversationLayer = stateSnapshot?.currentQuestion
+    ? buildConversationLayer(detectPersona(stateSnapshot), stateSnapshot.currentQuestion, stateSnapshot)
+    : null;
+
+  useEffect(() => {
+    if (!isLoaded || errorMessage || isLastStep) {
+      return;
+    }
+
+    responseInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    responseInputRef.current?.focus({ preventScroll: true });
+  }, [activeBlock.id, errorMessage, isLastStep, isLoaded]);
 
   const handleAnswerChange = (value: string) => {
     setCurrentAnswer(value);
@@ -78,6 +93,7 @@ export default function WorkspacePage() {
     writeInvestigationState(updatedState);
     setStateSnapshot(updatedState);
     setCurrentAnswer('');
+    setAnswerRecorded(true);
 
     if (!updatedState.currentQuestion) {
       router.push('/compreender');
@@ -91,7 +107,7 @@ export default function WorkspacePage() {
       subtitle="A conversa agora funciona como condução especialista: primeiro contexto, depois interpretação, em seguida atualização e, só então, a próxima pergunta."
       state={stateSnapshot}
     >
-      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]" aria-live="polite">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
             {activeBlock.step}
@@ -100,13 +116,21 @@ export default function WorkspacePage() {
             {activeBlock.objective}
           </span>
         </div>
+        {answerRecorded ? (
+          <p className="mt-4 text-sm font-semibold text-emerald-700">Resposta registrada. A investigação foi atualizada.</p>
+        ) : null}
+        <p className="mt-4 text-base font-semibold text-slate-950">
+          {conversationLayer?.recognition ?? 'Vamos reunir o próximo elemento essencial.'}
+        </p>
+        <p className="mt-2 text-sm leading-7 text-slate-600">{conversationLayer?.interpretation ?? activeBlock.intro}</p>
+        <p className="mt-2 text-sm leading-7 text-slate-600">{conversationLayer?.update}</p>
         <h2 className="mt-4 text-2xl font-semibold leading-tight text-slate-950">{activeBlock.question}</h2>
-        <p className="mt-3 text-sm leading-7 text-slate-600">{activeBlock.intro}</p>
-      </div>
+      </section>
 
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
         <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Registrar resposta</p>
         <textarea
+          ref={responseInputRef}
           value={currentAnswer}
           onChange={(event) => handleAnswerChange(event.target.value)}
           placeholder={activeBlock.placeholder}
@@ -126,16 +150,9 @@ export default function WorkspacePage() {
             disabled={(!currentAnswer.trim() && !isLastStep) || Boolean(errorMessage)}
             className="w-full sm:w-auto"
           >
-            {isLastStep ? 'Consolidar compreensão' : 'Avançar investigação'}
+            {isLastStep ? 'Consolidar compreensão' : `Registrar e ${activeBlock.objective.toLowerCase()}`}
           </Button>
         </div>
-      </div>
-
-      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
-        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Estado da condução</p>
-        <p className="mt-3 text-sm leading-7 text-slate-600">
-          {stateSnapshot?.investigationOutput.decision.rationale || 'A ATLAZ está usando as respostas para reduzir incerteza e fechar lacunas relevantes.'}
-        </p>
       </div>
     </InvestigationPageFrame>
   );

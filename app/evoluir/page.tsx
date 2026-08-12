@@ -9,11 +9,9 @@ import type { AdaptiveInvestigationState, EvidenceItem } from '@/runtime/artifac
 
 type ActionItem = {
   title: string;
-  explanation: string;
+  objective: string;
   impact: string;
-  effort: string;
-  area: string;
-  deadline: string;
+  justification: string;
 };
 
 const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
@@ -21,11 +19,9 @@ const toPercent = (value: number): string => `${Math.round(value * 100)}%`;
 const buildActionItem = (evidence: EvidenceItem, index: number): ActionItem => {
   return {
     title: `Ação ${index + 1}: ${evidence.investigationStep}`,
-    explanation: `Executar investigação dirigida com base na evidência ${evidence.evidenceType} para responder: ${evidence.question}`,
+    objective: `Validar ${evidence.question}`,
     impact: `Reduzir incerteza sobre ${evidence.relatedHypothesisId}`,
-    effort: evidence.weightLevel === 'Maximum' || evidence.weightLevel === 'VeryHigh' ? 'Alto' : 'Médio',
-    area: 'Operações + Qualidade',
-    deadline: evidence.temporalCorrelation >= 0.8 ? 'Iniciar em 24h' : 'Até D+5',
+    justification: `Esta validação tem prioridade porque a evidência foi classificada como ${evidence.evidenceType} e orienta diretamente a próxima decisão.`,
   };
 };
 
@@ -47,7 +43,7 @@ function ActionSection({ title, purpose, actions }: { title: string; purpose: st
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">{action.title}</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">{action.explanation}</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{action.objective}</p>
                   </div>
                 </div>
               </summary>
@@ -57,16 +53,8 @@ function ActionSection({ title, purpose, actions }: { title: string; purpose: st
                   <p className="mt-2 font-semibold text-slate-900">{action.impact}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Esforço de implementação</p>
-                  <p className="mt-2 font-semibold text-slate-900">{action.effort}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Área responsável</p>
-                  <p className="mt-2 font-semibold text-slate-900">{action.area}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Prazo sugerido</p>
-                  <p className="mt-2 font-semibold text-slate-900">{action.deadline}</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Justificativa</p>
+                  <p className="mt-2 font-semibold leading-6 text-slate-900">{action.justification}</p>
                 </div>
               </div>
             </details>
@@ -126,16 +114,19 @@ export default function EvoluirPage() {
       </div>
 
       <ActionSection
-        title="Primeiras ações recomendadas"
-        purpose="Ações imediatas para reduzir risco e encurtar o caminho até a decisão segura."
+        title="Plano de validação prioritário"
+        purpose="Comece pelas validações que mais reduzem a incerteza e protegem a decisão."
         actions={phaseOneActions}
       />
 
-      <ActionSection
-        title="Ações de validação"
-        purpose="Ações para transformar hipótese plausível em hipótese validada ou refutada com clareza."
-        actions={phaseTwoActions}
-      />
+      {phaseTwoActions.length ? (
+        <details className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">Ver próximas validações</summary>
+          <div className="mt-5">
+            <ActionSection title="Validações complementares" purpose="Ações posteriores, disponíveis quando a prioridade inicial estiver concluída." actions={phaseTwoActions} />
+          </div>
+        </details>
+      ) : null}
 
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
         <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Fechamento</p>
