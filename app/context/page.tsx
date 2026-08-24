@@ -139,6 +139,10 @@ export default function ContextBuildingPage() {
       title="Agora vamos fechar o contexto com precisão."
       subtitle="Eu vou conduzir a leitura do caso, explicar o que cada resposta muda e manter o foco no que realmente reduz incerteza."
       state={stateSnapshot}
+      onStateUpdated={(updatedState) => {
+        setStateSnapshot(updatedState);
+        setFirstQuestion(updatedState.currentQuestion?.question ?? '');
+      }}
     >
       {errorMessage ? (
         <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-6 text-sm leading-7 text-rose-700">

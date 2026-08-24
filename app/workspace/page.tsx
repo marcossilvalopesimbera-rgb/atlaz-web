@@ -106,6 +106,7 @@ export default function WorkspacePage() {
       title="Cada resposta precisa mover a investigação para frente."
       subtitle="A conversa agora funciona como condução especialista: primeiro contexto, depois interpretação, em seguida atualização e, só então, a próxima pergunta."
       state={stateSnapshot}
+      onStateUpdated={setStateSnapshot}
     >
       <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]" aria-live="polite">
         <div className="flex flex-wrap items-center gap-3">

@@ -10,18 +10,20 @@ import {
   toneClassByKanban,
 } from '@/lib/cixExperience';
 import { TechnicalAnalysisPanel } from './TechnicalAnalysisPanel';
+import { EvidenceIntakeControl } from './EvidenceIntakeControl';
 
 type InvestigationPageFrameProps = {
   stageLabel: string;
   title: string;
   subtitle: string;
   state: AdaptiveInvestigationState | null;
+  onStateUpdated?: (state: AdaptiveInvestigationState) => void;
   children: ReactNode;
 };
 
 const cardClassName = 'rounded-[1.75rem] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)] backdrop-blur';
 
-export function InvestigationPageFrame({ stageLabel, title, subtitle, state, children }: InvestigationPageFrameProps) {
+export function InvestigationPageFrame({ stageLabel, title, subtitle, state, onStateUpdated, children }: InvestigationPageFrameProps) {
   const persona = detectPersona(state);
   const summary = state ? buildExecutiveSummary(state) : null;
   const narrative = state ? buildInvestigationNarrative(state, persona) : 'Ainda estamos coletando contexto para estruturar a investigação.';
@@ -56,6 +58,8 @@ export function InvestigationPageFrame({ stageLabel, title, subtitle, state, chi
               </div>
             </div>
           </div>
+
+          <EvidenceIntakeControl state={state} onStateUpdated={onStateUpdated} />
 
           {summary ? (
             <section className={cardClassName} aria-label="Resumo executivo da investigação">

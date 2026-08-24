@@ -27,6 +27,7 @@ export default function CompreenderPage() {
       title="Chegamos ao ponto em que a investigação começa a ficar nítida."
       subtitle="A ATLAZ mostra apenas o que sustenta a leitura executiva: uma hipótese principal, poucas alternativas e as evidências que realmente movem o caso."
       state={stateSnapshot}
+      onStateUpdated={setStateSnapshot}
     >
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.32)]">
         <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Hipótese principal</p>
